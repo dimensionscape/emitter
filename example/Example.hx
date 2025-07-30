@@ -1,4 +1,5 @@
 package example;
+
 import emitter.signals.Emitter;
 import emitter.signals.SignalType;
 import haxe.Constraints.Function;
@@ -7,41 +8,35 @@ import haxe.Constraints.Function;
  * ...
  * @author Christopher Speciale
  */
-class Example
-{
-
-	public static inline function run():Void
-	{
+class Example {
+	public static inline function run():Void {
 		new Example();
 	}
-	private function new()
-	{
+
+	private function new() {
 		runExamples();
 	}
 
-	function runExamples():Void
-	{
+	function runExamples():Void {
 		trace("Execute simple example");
-		//Basic example covering a simple untyped use case
+		// Basic example covering a simple untyped use case
 		simpleExample();
 
 		trace("Execute tpical example");
-		//Typical example covering typed use cases
+		// Typical example covering typed use cases
 		typedExample();
 
 		trace("Execute untyped example");
-		//Typical example covering untyped use case
+		// Typical example covering untyped use case
 		untypedExample();
 	}
 
-	function simpleExample():Void
-	{
+	function simpleExample():Void {
 		// Create an instance of Emitter
 		var emitter:Emitter = new Emitter();
 
 		// Define a callback function for the "test" signal
-		var callback:Function = function(data:Dynamic)
-		{
+		var callback:Function = function(data:Dynamic) {
 			trace("Received number: " + data);
 		};
 
@@ -53,26 +48,24 @@ class Example
 
 		// Unsubscribe the callback from the "test" signal
 		emitter.off("test", callback);
-		
+
 		trace("");
 	}
 
-	function typedExample():Void
-	{
+	function typedExample():Void {
 		/*
-		We define our Signal in the example.Signal class as follows:
-		public static var TEST0:SignalType<Void->Void> = "test0";
+			We define our Signal in the example.Signal class as follows:
+			public static var TEST0:SignalType<Void->Void> = "test0";
 
-		The first type parameter in every SignalType is the function signature. The
-		base SignalType expects no arguments to be passed and only has one type parameter.
+			The first type parameter in every SignalType is the function signature. The
+			base SignalType expects no arguments to be passed and only has one type parameter.
 		 */
 
 		// Create an instance of Emitter
 		var emitter:Emitter = new Emitter();
 
 		// Define a callback function the TEST0 signal, with no arguments `Void->Void`
-		var callback_TEST0:Void->Void = function()
-		{
+		var callback_TEST0:Void->Void = function() {
 			trace("TEST0 Signal received");
 		};
 
@@ -86,18 +79,17 @@ class Example
 		emitter.off(Signal.TEST0, callback_TEST0);
 
 		/*
-		We define our next Signal in the example.Signal class as follows:
-		public static var TEST1:SignalType1<String->Void> = "test1";
+			We define our next Signal in the example.Signal class as follows:
+			public static var TEST1:SignalType1<String->Void> = "test1";
 
-		The first type parameter in every SignalType1 is the function signature. SignalType1
-		expects a single parameter type that defines the type of the argument passed in the signal,
-		following the function signature parameter type. In this particular example, the callback
-		function expects a String.
+			The first type parameter in every SignalType1 is the function signature. SignalType1
+			expects a single parameter type that defines the type of the argument passed in the signal,
+			following the function signature parameter type. In this particular example, the callback
+			function expects a String.
 		 */
 
 		// Define a callback function the TEST1 signal, with a single string parameter `String->Void`
-		var callback_TEST1:String->Void = function(s:String)
-		{
+		var callback_TEST1:String->Void = function(s:String) {
 			trace("Received string: " + s);
 		};
 
@@ -111,18 +103,17 @@ class Example
 		emitter.off(Signal.TEST1, callback_TEST1);
 
 		/*
-		We define our next Signal in the example.Signal class as follows:
-		public static var TEST2:SignalType2<(Int, Float)->Void> = "test2";
+			We define our next Signal in the example.Signal class as follows:
+			public static var TEST2:SignalType2<(Int, Float)->Void> = "test2";
 
-		The first type parameter in every SignalType2 is the function signature. SignalType2
-		expects a two parameter types that define the type of the arguments passed in the signal,
-		following the function signature parameter type. In this particular example, the callback
-		function expects an Int followed by a Float.
+			The first type parameter in every SignalType2 is the function signature. SignalType2
+			expects a two parameter types that define the type of the arguments passed in the signal,
+			following the function signature parameter type. In this particular example, the callback
+			function expects an Int followed by a Float.
 		 */
 
 		// Define a callback function the TEST2 signal, with a single string parameter `(Int, Float)->Void`
-		var callback_TEST2:(Int, Float)->Void = function(n:Int, x:Float)
-		{
+		var callback_TEST2:(Int, Float) -> Void = function(n:Int, x:Float) {
 			trace("Received number: " + n + " and floating-point number: " + x);
 		};
 
@@ -158,14 +149,12 @@ class Example
 		trace("");
 	}
 
-	function untypedExample():Void
-	{
+	function untypedExample():Void {
 		// Create an instance of Emitter
 		var emitter:Emitter = new Emitter();
 
 		// Define a callback function for the "test" signal
-		var callback:Function = function(s:String, n:Int, x:Float)
-		{
+		var callback:Function = function(s:String, n:Int, x:Float) {
 			trace("Received string: " + s + " and number: " + n + " and floating-point number: " + x);
 		};
 
@@ -178,5 +167,4 @@ class Example
 		// Unsubscribe the callback from the "test" signal
 		emitter.off("test", callback);
 	}
-
 }
