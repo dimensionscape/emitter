@@ -98,15 +98,18 @@ class Emitter
 	overload extern public inline function emit<T>(type:SignalType<T>):Void
 	{
 
-		var signalsOfType = __signals.get(type);
+                var callbacks = __signals.get(type);
 
-		if (signalsOfType != null)
-		{
-			for (callback in signalsOfType)
-			{
-				callback();
-			}
-		}
+                if (callbacks != null)
+                {
+                        var i = 0;
+                        while (i < callbacks.length)
+                        {
+                                var cb = callbacks[i];
+                                cb();
+                                if (callbacks[i] == cb) i++;
+                        }
+                }
 
 	}
 
@@ -119,15 +122,18 @@ class Emitter
 	overload extern public inline function emit<T, T1>(type:SignalType1<T, T1>, a:T1):Void
 	{
 
-		var signalsOfType:Array<Function> = __signals.get(type);
+                var callbacks:Array<Function> = __signals.get(type);
 
-		if (signalsOfType != null)
-		{
-			for (callback in signalsOfType)
-			{
-				callback(a);
-			}
-		}
+                if (callbacks != null)
+                {
+                        var i = 0;
+                        while (i < callbacks.length)
+                        {
+                                var cb = callbacks[i];
+                                cb(a);
+                                if (callbacks[i] == cb) i++;
+                        }
+                }
 
 	}
 
@@ -140,14 +146,17 @@ class Emitter
 	overload extern public inline function emit<T, T1, T2>(type:SignalType2<T, T1, T2>, a:T1, b:T2):Void
 	{
 
-		var signalsOfType = __signals.get(type);
-		if (signalsOfType != null)
-		{
-			for (callback in signalsOfType)
-			{
-				callback(a, b);
-			}
-		}
+                var callbacks = __signals.get(type);
+                if (callbacks != null)
+                {
+                        var i = 0;
+                        while (i < callbacks.length)
+                        {
+                                var cb = callbacks[i];
+                                cb(a, b);
+                                if (callbacks[i] == cb) i++;
+                        }
+                }
 	}
 
 	/**
@@ -160,14 +169,17 @@ class Emitter
 	overload extern public inline function emit<T, T1, T2, T3>(type:SignalType3<T, T1, T2, T3>, a:T1, b:T2, c:T3):Void
 	{
 
-		var signalsOfType = __signals.get(type);
-		if (signalsOfType != null)
-		{
-			for (callback in signalsOfType)
-			{
-				callback(a, b, c);
-			}
-		}
+                var callbacks = __signals.get(type);
+                if (callbacks != null)
+                {
+                        var i = 0;
+                        while (i < callbacks.length)
+                        {
+                                var cb = callbacks[i];
+                                cb(a, b, c);
+                                if (callbacks[i] == cb) i++;
+                        }
+                }
 	}
 
 	/**
@@ -181,14 +193,17 @@ class Emitter
 	overload extern public inline function emit<T, T1, T2, T3, T4>(type:SignalType4<T, T1, T2, T3, T4>, a:T1, b:T2, c:T3, d:T4):Void
 	{
 
-		var signalsOfType = __signals.get(type);
-		if (signalsOfType != null)
-		{
-			for (callback in signalsOfType)
-			{
-				callback(a, b, c, d);
-			}
-		}
+                var callbacks = __signals.get(type);
+                if (callbacks != null)
+                {
+                        var i = 0;
+                        while (i < callbacks.length)
+                        {
+                                var cb = callbacks[i];
+                                cb(a, b, c, d);
+                                if (callbacks[i] == cb) i++;
+                        }
+                }
 	}
 
 	/**
@@ -203,14 +218,17 @@ class Emitter
 	overload extern public inline function emit<T, T1, T2, T3, T4, T5>(type:SignalType5<T, T1, T2, T3, T4, T5>, a:T1, b:T2, c:T3, d:T4, e:T5):Void
 	{
 
-		var signalsOfType = __signals.get(type);
-		if (signalsOfType != null)
-		{
-			for (callback in signalsOfType)
-			{
-				callback(a, b, c, d, e);
-			}
-		}
+                var callbacks = __signals.get(type);
+                if (callbacks != null)
+                {
+                        var i = 0;
+                        while (i < callbacks.length)
+                        {
+                                var cb = callbacks[i];
+                                cb(a, b, c, d, e);
+                                if (callbacks[i] == cb) i++;
+                        }
+                }
 	}
 
 	/**
@@ -223,35 +241,38 @@ class Emitter
 	public function emitUntyped<T>(type:SignalType<T>, ...args:Dynamic):Void
 	{
 
-		var signalsOfType = __signals.get(type);
-		if (signalsOfType != null)
-		{
-			for (callback in signalsOfType)
-			{
-				if (args == null)
-				{
-					callback();
-				}
-				else
-				{
-					switch (args.length)
-					{
-						case 1:
-							callback(args[0]);
-						case 2:
-							callback(args[0], args[1]);
-						case 3:
-							callback(args[0], args[1], args[2]);
-						case 4:
-							callback(args[0], args[1], args[2], args[3]);
-						case 5:
-							callback(args[0], args[1], args[2], args[3], args[4]);
-						default:
-							Reflect.callMethod(this, callback, args);
-					}
-				}
-			}
-		}
+                var callbacks = __signals.get(type);
+                if (callbacks != null)
+                {
+                        var i = 0;
+                        while (i < callbacks.length)
+                        {
+                                var cb = callbacks[i];
+                                if (args == null)
+                                {
+                                        cb();
+                                }
+                                else
+                                {
+                                        switch (args.length)
+                                        {
+                                                case 1:
+                                                        cb(args[0]);
+                                                case 2:
+                                                        cb(args[0], args[1]);
+                                                case 3:
+                                                        cb(args[0], args[1], args[2]);
+                                                case 4:
+                                                        cb(args[0], args[1], args[2], args[3]);
+                                                case 5:
+                                                        cb(args[0], args[1], args[2], args[3], args[4]);
+                                                default:
+                                                        Reflect.callMethod(this, cb, args);
+                                        }
+                                }
+                                if (callbacks[i] == cb) i++;
+                        }
+                }
 	}
 
 	/**
