@@ -1,5 +1,5 @@
 {
-	"name": "Emitter",
+	"name": "emitter",
 	"url" : "https://github.com/Dimensionscape/Emitter",
 	"license": "MIT",
 	"tags": ["eventdispatcher", "eventemitter", "signal", "signals", "event", "emitter", "dispatcher","events", "observer"],
