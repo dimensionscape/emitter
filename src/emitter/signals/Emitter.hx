@@ -51,7 +51,6 @@ class Emitter {
 		return this;
 	}
 
-       public function off<T>(signal:SignalType<T>, callback:TypedFunction<T>):Emitter {
 	/**
 	 * Unregisters a callback function for the specified signal.
 	 *
