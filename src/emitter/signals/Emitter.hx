@@ -51,42 +51,32 @@ class Emitter {
 		return this;
 	}
 
-	private inline function __onOnce<T>(signal:SignalType<T>, callback:Function):Emitter {
-		if (!__signals.exists(signal)) {
-			__signals.set(signal, [callback]);
-		} else {
-			__signals.get(signal).push(callback);
-		}
+       /**
+        * Unregisters a callback function for the specified signal.
+        *
+        * If removing the callback leaves the signal with no callbacks, the
+        * signal entry is automatically removed from the emitter.
+        *
+        * @param signal The signal from which to remove the callback.
+        * @param callback The callback function to remove.
+        * @return The Emitter instance for method chaining.
+        */
+       public function off<T>(signal:SignalType<T>, callback:TypedFunction<T>):Emitter {
+               if (__signals.exists(signal)) {
+                       var signalsOfType = __signals.get(signal);
 
-		return this;
-	}
+                       var index = signalsOfType.indexOf(callback);
+                       if (index != -1) {
+                               signalsOfType.splice(index, 1);
 
-	/**
-	 * Unregisters a callback function for the specified signal.
-	 *
-	 * If removing the callback leaves the signal with no callbacks, the
-	 * signal entry is automatically removed from the emitter.
-	 *
-	 * @param signal The signal from which to remove the callback.
-	 * @param callback The callback function to remove.
-	 * @return The Emitter instance for method chaining.
-	 */
-	public function off<T>(signal:SignalType<T>, callback:TypedFunction<T>):Emitter {
-		if (__signals.exists(signal)) {
-			var signalsOfType = __signals.get(signal);
+                               if (signalsOfType.length == 0) {
+                                       __signals.remove(signal);
+                               }
+                       }
+               }
 
-			var index = signalsOfType.indexOf(callback);
-			if (index != -1) {
-				signalsOfType.splice(index, 1);
-
-				if (signalsOfType.length == 0) {
-					__signals.remove(signal);
-				}
-			}
-		}
-
-		return this;
-	}
+               return this;
+       }
 
 	/**
 	 * Unregisters a callback function for the specified signal.
@@ -380,33 +370,33 @@ class Emitter {
 		}
 	}
 
-	/**
-	 * Returns the total number of unique signals registered with the Emitter.
-	 *
-	 * Signals that no longer have callbacks are automatically removed,
-	 * so this value always reflects active signals only.
-	 *
-	 * @return An unsigned integer (UInt) representing the total number of unique signals registered with the Emitter.
-	 */
-	public function signalCount():UInt {
-		var count:Int = 0;
+       /**
+        * Returns the total number of unique signals registered with the Emitter.
+        *
+        * Signals that no longer have callbacks are automatically removed,
+        * so this value always reflects active signals only.
+        *
+        * @return An unsigned integer (UInt) representing the total number of unique signals registered with the Emitter.
+        */
+       public function signalCount():UInt {
+                var count:Int = 0;
 
-		for (key in __signals.keys()) {
-			count++;
-		}
+                for (key in __signals.keys()) {
+                        count++;
+                }
 
 		return count;
 	}
 
-	/**
-	 * Returns the total number of callbacks registered across all signals.
-	 *
-	 * Signals that no longer have callbacks are automatically removed,
-	 * so the returned value only includes active callbacks.
-	 *
-	 * @return An unsigned integer (UInt) representing the total number of callbacks registered across all signals.
-	 */
-	public function totalCallbacks():UInt {
+       /**
+        * Returns the total number of callbacks registered across all signals.
+        *
+        * Signals that no longer have callbacks are automatically removed,
+        * so the returned value only includes active callbacks.
+        *
+        * @return An unsigned integer (UInt) representing the total number of callbacks registered across all signals.
+        */
+       public function totalCallbacks():UInt {
 		var count:Int = 0;
 
 		for (key in __signals.keys()) {
@@ -434,16 +424,16 @@ class Emitter {
 		return this;
 	}
 
-	/**
-	 * Determines if the specified signal is registered.
-	 *
-	 * Signals without callbacks are automatically removed when the last
-	 * callback is removed.
-	 *
-	 * @param signal The signal to check.
-	 * @return True if the signal is registered; otherwise, false.
-	 */
-	public function hasSignal(signal:SignalType<Dynamic>):Bool {
+       /**
+        * Determines if the specified signal is registered.
+        *
+        * Signals without callbacks are automatically removed when the last
+        * callback is removed.
+        *
+        * @param signal The signal to check.
+        * @return True if the signal is registered; otherwise, false.
+        */
+       public function hasSignal(signal:SignalType<Dynamic>):Bool {
 		return __signals.exists(signal);
 	}
 
