@@ -51,32 +51,33 @@ class Emitter {
 		return this;
 	}
 
-       /**
-        * Unregisters a callback function for the specified signal.
-        *
-        * If removing the callback leaves the signal with no callbacks, the
-        * signal entry is automatically removed from the emitter.
-        *
-        * @param signal The signal from which to remove the callback.
-        * @param callback The callback function to remove.
-        * @return The Emitter instance for method chaining.
-        */
        public function off<T>(signal:SignalType<T>, callback:TypedFunction<T>):Emitter {
-               if (__signals.exists(signal)) {
-                       var signalsOfType = __signals.get(signal);
+	/**
+	 * Unregisters a callback function for the specified signal.
+	 *
+	 * If removing the callback leaves the signal with no callbacks, the
+	 * signal entry is automatically removed from the emitter.
+	 *
+	 * @param signal The signal from which to remove the callback.
+	 * @param callback The callback function to remove.
+	 * @return The Emitter instance for method chaining.
+	 */
+	public function off<T>(signal:SignalType<T>, callback:TypedFunction<T>):Emitter {
+		if (__signals.exists(signal)) {
+			var signalsOfType = __signals.get(signal);
 
-                       var index = signalsOfType.indexOf(callback);
-                       if (index != -1) {
-                               signalsOfType.splice(index, 1);
+			var index = signalsOfType.indexOf(callback);
+			if (index != -1) {
+				signalsOfType.splice(index, 1);
 
-                               if (signalsOfType.length == 0) {
-                                       __signals.remove(signal);
-                               }
-                       }
-               }
+				if (signalsOfType.length == 0) {
+					__signals.remove(signal);
+				}
+			}
+		}
 
-               return this;
-       }
+		return this;
+	}
 
 	/**
 	 * Unregisters a callback function for the specified signal.
@@ -88,7 +89,7 @@ class Emitter {
 		// Cast signal to string once
 		var signalID:String = signal;
 
-		return __onOnce(signalID, __onceHandler(signalID, callback));
+		return on(signalID, __onceHandler(signalID, callback));
 	}
 
 	/**
@@ -102,7 +103,6 @@ class Emitter {
 			var i = 0;
 			while (i < callbacks.length) {
 				var cb = callbacks[i];
-				trace('cb');
 				cb();
 				if (callbacks[i] == cb)
 					i++;
@@ -134,7 +134,7 @@ class Emitter {
 					(cast cb : Rest<Dynamic>->Void)(a);
 				}
 				#else
-				cb(a);
+				(cast cb : TypedFunction<T>)(a);
 				#end
 
 				if (callbacks[i] == cb)
@@ -167,7 +167,7 @@ class Emitter {
 					(cast cb : Rest<Dynamic>->Void)(a, b);
 				}
 				#else
-				cb(a, b);
+				(cast cb : TypedFunction<T>)(a, b);
 				#end
 
 				if (callbacks[i] == cb)
@@ -201,7 +201,7 @@ class Emitter {
 					(cast cb : Rest<Dynamic>->Void)(a, b, c);
 				}
 				#else
-				cb(a, b, c);
+				(cast cb : TypedFunction<T>)(a, b, c);
 				#end
 
 				if (callbacks[i] == cb)
@@ -236,7 +236,7 @@ class Emitter {
 					(cast cb : Rest<Dynamic>->Void)(a, b, c, d);
 				}
 				#else
-				cb(a, b, c, d);
+				(cast cb : TypedFunction<T>)(a, b, c, d);
 				#end
 
 				if (callbacks[i] == cb)
@@ -272,7 +272,7 @@ class Emitter {
 					(cast cb : Rest<Dynamic>->Void)(a, b, c, d, e);
 				}
 				#else
-				cb(a, b, c, d, e);
+				(cast cb : TypedFunction<T>)(a, b, c, d, e);
 				#end
 
 				if (callbacks[i] == cb)
@@ -325,15 +325,15 @@ class Emitter {
 					case 0:
 						cb();
 					case 1:
-						cb(args[0]);
+						(cast cb : TypedFunction<T>)(args[0]);
 					case 2:
-						cb(args[0], args[1]);
+						(cast cb : TypedFunction<T>)(args[0], args[1]);
 					case 3:
-						cb(args[0], args[1], args[2]);
+						(cast cb : TypedFunction<T>)(args[0], args[1], args[2]);
 					case 4:
-						cb(args[0], args[1], args[2], args[3]);
+						(cast cb : TypedFunction<T>)(args[0], args[1], args[2], args[3]);
 					case 5:
-						cb(args[0], args[1], args[2], args[3], args[4]);
+						(cast cb : TypedFunction<T>)(args[0], args[1], args[2], args[3], args[4]);
 					default:
 						Reflect.callMethod(this, cb, args);
 				}
@@ -370,33 +370,33 @@ class Emitter {
 		}
 	}
 
-       /**
-        * Returns the total number of unique signals registered with the Emitter.
-        *
-        * Signals that no longer have callbacks are automatically removed,
-        * so this value always reflects active signals only.
-        *
-        * @return An unsigned integer (UInt) representing the total number of unique signals registered with the Emitter.
-        */
-       public function signalCount():UInt {
-                var count:Int = 0;
+	/**
+	 * Returns the total number of unique signals registered with the Emitter.
+	 *
+	 * Signals that no longer have callbacks are automatically removed,
+	 * so this value always reflects active signals only.
+	 *
+	 * @return An unsigned integer (UInt) representing the total number of unique signals registered with the Emitter.
+	 */
+	public function signalCount():UInt {
+		var count:Int = 0;
 
-                for (key in __signals.keys()) {
-                        count++;
-                }
+		for (key in __signals.keys()) {
+			count++;
+		}
 
 		return count;
 	}
 
-       /**
-        * Returns the total number of callbacks registered across all signals.
-        *
-        * Signals that no longer have callbacks are automatically removed,
-        * so the returned value only includes active callbacks.
-        *
-        * @return An unsigned integer (UInt) representing the total number of callbacks registered across all signals.
-        */
-       public function totalCallbacks():UInt {
+	/**
+	 * Returns the total number of callbacks registered across all signals.
+	 *
+	 * Signals that no longer have callbacks are automatically removed,
+	 * so the returned value only includes active callbacks.
+	 *
+	 * @return An unsigned integer (UInt) representing the total number of callbacks registered across all signals.
+	 */
+	public function totalCallbacks():UInt {
 		var count:Int = 0;
 
 		for (key in __signals.keys()) {
@@ -424,20 +424,20 @@ class Emitter {
 		return this;
 	}
 
-       /**
-        * Determines if the specified signal is registered.
-        *
-        * Signals without callbacks are automatically removed when the last
-        * callback is removed.
-        *
-        * @param signal The signal to check.
-        * @return True if the signal is registered; otherwise, false.
-        */
-       public function hasSignal(signal:SignalType<Dynamic>):Bool {
+	/**
+	 * Determines if the specified signal is registered.
+	 *
+	 * Signals without callbacks are automatically removed when the last
+	 * callback is removed.
+	 *
+	 * @param signal The signal to check.
+	 * @return True if the signal is registered; otherwise, false.
+	 */
+	public function hasSignal(signal:SignalType<Dynamic>):Bool {
 		return __signals.exists(signal);
 	}
 
-	private function __onceHandler<T>(signalID:String, callback:TypedFunction<T>, retFunc:TypedFunction<Rest<Dynamic>->Void> = null):TypedFunction<T> {
+	private function __onceHandler(signalID:String, callback:Function, retFunc:Function = null):Function {
 		return retFunc = cast function(...args) {
 			if (args == null) {
 				callback();
