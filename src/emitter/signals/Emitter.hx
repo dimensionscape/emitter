@@ -309,9 +309,14 @@ class Emitter {
 	}
 
 	/**
-	 * Unregisters a callback function for the specified signal.
-	 * @param signal The signal from which to remove the callback.
-	 * @param callback The callback function to remove.
+	 * Registers a one-time callback for the specified signal.
+	 *
+	 * The callback will be invoked at most once the next time the signal is emitted,
+	 * and it will automatically be removed afterward.
+	 *
+	 * @param signal The signal to listen for.
+	 * @param callback The callback function to invoke when the signal is emitted.
+	 * @param arity The number of parameters the callback expects (used for correct wrapping).
 	 * @return The Emitter instance for method chaining.
 	 */
 	public function once<T>(signal:SignalType<T>, callback:TypedFunction<T>, arity:Arity):Emitter {
