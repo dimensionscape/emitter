@@ -61,6 +61,20 @@ class Emitter {
 	}
 
 	/**
+	 * Disposes this emitter's internal state and prepares it for cleanup by the garbage collector.
+	 *
+	 * After calling this method, the emitter will be in an uninitialized state and cannot be used
+	 * again unless reinitialized internally via `on()`, `once()`, or `prepend()`.
+	 */
+	public function dispose():Void {
+		if (__isReady) {
+			__signals.clear();
+			__signals = null;
+			__isReady = false;
+		}
+	}
+
+	/**
 	 * Emits the specified signal with no arguments
 	 * @param type The type of signal to emit.
 	 */
@@ -297,7 +311,7 @@ class Emitter {
 	 * @param callback The callback function to invoke when the signal is emitted.
 	 * @return The Emitter instance for method chaining.
 	 */
-	public inline function on<T>(signal:SignalType<T>, callback:TypedFunction<T>):Emitter {
+	public function on<T>(signal:SignalType<T>, callback:TypedFunction<T>):Emitter {
 		// lets lazy init our signals map to ensure lower gc pressure on certain objects
 		if (__ensureMap()) {
 			__signals.set(signal, [callback]);
@@ -438,7 +452,7 @@ class Emitter {
 		}
 	}
 
-	private inline function __onceHandler0<T>(signal:SignalType<T>, callback:Void->Void):Void->Void {
+	@:noCompletion private inline function __onceHandler0<T>(signal:SignalType<T>, callback:Void->Void):Void->Void {
 		var wrapper:Void->Void = null;
 		wrapper = function():Void {
 			callback();
@@ -447,7 +461,7 @@ class Emitter {
 		return wrapper;
 	}
 
-	private inline function __onceHandler1<T, T1>(signal:SignalType<T>, callback:T1->Void):T1->Void {
+	@:noCompletion private inline function __onceHandler1<T, T1>(signal:SignalType<T>, callback:T1->Void):T1->Void {
 		var wrapper:T1->Void = null;
 		wrapper = function(a:T1):Void {
 			callback(a);
@@ -456,7 +470,7 @@ class Emitter {
 		return wrapper;
 	}
 
-	private inline function __onceHandler2<T, T1, T2>(signal:SignalType<T>, callback:T1->T2->Void):T1->T2->Void {
+	@:noCompletion private inline function __onceHandler2<T, T1, T2>(signal:SignalType<T>, callback:T1->T2->Void):T1->T2->Void {
 		var wrapper:T1->T2->Void = null;
 		wrapper = function(a:T1, b:T2):Void {
 			callback(a, b);
@@ -465,7 +479,7 @@ class Emitter {
 		return wrapper;
 	}
 
-	private inline function __onceHandler3<T, T1, T2, T3>(signal:SignalType<T>, callback:T1->T2->T3->Void):T1->T2->T3->Void {
+	@:noCompletion private inline function __onceHandler3<T, T1, T2, T3>(signal:SignalType<T>, callback:T1->T2->T3->Void):T1->T2->T3->Void {
 		var wrapper:T1->T2->T3->Void = null;
 		wrapper = function(a:T1, b:T2, c:T3):Void {
 			callback(a, b, c);
@@ -474,7 +488,7 @@ class Emitter {
 		return wrapper;
 	}
 
-	private inline function __onceHandler4<T, T1, T2, T3, T4>(signal:SignalType<T>, callback:T1->T2->T3->T4->Void):T1->T2->T3->T4->Void {
+	@:noCompletion private inline function __onceHandler4<T, T1, T2, T3, T4>(signal:SignalType<T>, callback:T1->T2->T3->T4->Void):T1->T2->T3->T4->Void {
 		var wrapper:T1->T2->T3->T4->Void = null;
 		wrapper = function(a:T1, b:T2, c:T3, d:T4):Void {
 			callback(a, b, c, d);
@@ -483,7 +497,8 @@ class Emitter {
 		return wrapper;
 	}
 
-	private inline function __onceHandler5<T, T1, T2, T3, T4, T5>(signal:SignalType<T>, callback:T1->T2->T3->T4->T5->Void):T1->T2->T3->T4->T5->Void {
+	@:noCompletion private inline function __onceHandler5<T, T1, T2, T3, T4, T5>(signal:SignalType<T>,
+			callback:T1->T2->T3->T4->T5->Void):T1->T2->T3->T4->T5->Void {
 		var wrapper:T1->T2->T3->T4->T5->Void = null;
 		wrapper = function(a:T1, b:T2, c:T3, d:T4, e:T5):Void {
 			callback(a, b, c, d, e);
@@ -492,7 +507,7 @@ class Emitter {
 		return wrapper;
 	}
 
-	private inline function __push(signal:String, cb:Function):Void {
+	@:noCompletion private inline function __push(signal:String, cb:Function):Void {
 		var list = __signals.get(signal);
 		if (list == null) {
 			__signals.set(signal, [cb]);
