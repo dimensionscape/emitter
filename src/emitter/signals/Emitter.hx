@@ -441,7 +441,7 @@ class Emitter {
 		__signals = new Map<String, Array<Function>>();
 	}
 
-	private inline function __onceHandler<T>(signal:SignalType<T>, callback:TypedFunction<T>, arity:Arity):Function {
+	private inline function __onceHandler<T>(signal:SignalType<T>, callback:TypedFunction<T>, arity:Arity = null):Function {
 		return switch (arity) {
 			case Zero: __onceHandler0(signal, callback);
 			case One: __onceHandler1(signal, callback);
@@ -449,7 +449,16 @@ class Emitter {
 			case Three: __onceHandler3(signal, callback);
 			case Four: __onceHandler4(signal, callback);
 			case Five: __onceHandler5(signal, callback);
+			case VarArgs: __onceHandlerUntyped(signal, callback);
 		}
+	}
+
+	private inline function __onceHandlerUntyped(signal:String, callback:Function, wrapper:Function = null):Function {
+		wrapper = Reflect.makeVarArgs(function(args:Array<Dynamic>) {
+			Reflect.callMethod(this, callback, args);
+			off(signal, cast wrapper);
+		});
+		return wrapper;
 	}
 
 	@:noCompletion private inline function __onceHandler0<T>(signal:SignalType<T>, callback:Void->Void):Void->Void {
