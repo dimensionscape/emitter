@@ -4,8 +4,8 @@
 	"license": "MIT",
 	"tags": ["eventdispatcher", "eventemitter", "signal", "signals", "event", "emitter", "dispatcher","events", "observer"],
     "description": "Emitter is a tiny, ultra lightweight and super performant signal-like event handling library with type safety.",
-	"version": "0.9.1",
+	"version": "1.0.0",
 	"classPath": "src/",
-	"releasenote": "Performance improvements.",
+	"releasenote": "",
 	"contributors": [ "Dimensionscape" ]
 }
