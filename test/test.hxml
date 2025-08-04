@@ -1,0 +1,3 @@
+-lib utest
+-main TestMain
+-run TestMain.hx
