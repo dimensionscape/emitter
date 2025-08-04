@@ -3,7 +3,7 @@ package emitter.signals;
 import haxe.Rest;
 import haxe.Constraints.Function;
 import emitter.signals.SignalType;
-import emitter.util.TypedFunction;
+import emitter.signals.SignalHandler;
 
 /**
  * ...
@@ -51,7 +51,7 @@ class Emitter {
 	 * @return An unsigned integer (UInt) representing the number of callbacks registered for the specified signal type. If the signal does not have any registered callbacks, it returns 0.
 	 */
 	public function callbackCount(signal:SignalType<Dynamic>):UInt {
-		if (__isReady || __signals.exists(signal)) {
+		if (__isReady && __signals.exists(signal)) {
 			var callbacks = __signals.get(signal);
 
 			return callbacks.length;
@@ -285,7 +285,7 @@ class Emitter {
 	 * @param callback The callback function to remove.
 	 * @return The Emitter instance for method chaining.
 	 */
-	public function off<T>(signal:SignalType<T>, callback:TypedFunction<T>):Emitter {
+	public function off<T>(signal:SignalType<T>, callback:SignalHandler<T>):Emitter {
 		if (!__isReady)
 			return this;
 
@@ -311,7 +311,7 @@ class Emitter {
 	 * @param callback The callback function to invoke when the signal is emitted.
 	 * @return The Emitter instance for method chaining.
 	 */
-	public function on<T>(signal:SignalType<T>, callback:TypedFunction<T>):Emitter {
+	public function on<T>(signal:SignalType<T>, callback:SignalHandler<T>):Emitter {
 		// lets lazy init our signals map to ensure lower gc pressure on certain objects
 		if (__ensureMap()) {
 			__signals.set(signal, [callback]);
@@ -333,7 +333,7 @@ class Emitter {
 	 * @param arity The number of parameters the callback expects (used for correct wrapping).
 	 * @return The Emitter instance for method chaining.
 	 */
-	public function once<T>(signal:SignalType<T>, callback:TypedFunction<T>, arity:Arity):Emitter {
+	public function once<T>(signal:SignalType<T>, callback:SignalHandler<T>, arity:Arity):Emitter {
 		if (__ensureMap()) {
 			__signals.set(signal, [__onceHandler(signal, callback, arity)]);
 		} else {
@@ -347,10 +347,10 @@ class Emitter {
 	 * Adds a callback to the beginning of the callback list for a specific signal type.
 	 *
 	 * @param signal A SignalType<T> object representing the signal to which to prepend the callback.
-	 * @param callback A TypedFunction<T> representing the callback function to prepend.
+	 * @param callback A SignalHandler<T> representing the callback function to prepend.
 	 * @return The Emitter object itself, allowing for method chaining.
 	 */
-	public function prepend<T>(signal:SignalType<T>, callback:TypedFunction<T>):Emitter {
+	public function prepend<T>(signal:SignalType<T>, callback:SignalHandler<T>):Emitter {
 		if (__ensureMap()) {
 			__signals.set(signal, [callback]);
 		} else {
@@ -441,7 +441,7 @@ class Emitter {
 		__signals = new Map<String, Array<Function>>();
 	}
 
-	private inline function __onceHandler<T>(signal:SignalType<T>, callback:TypedFunction<T>, arity:Arity = null):Function {
+	private inline function __onceHandler<T>(signal:SignalType<T>, callback:SignalHandler<T>, arity:Arity = null):Function {
 		return switch (arity) {
 			case Zero: __onceHandler0(signal, callback);
 			case One: __onceHandler1(signal, callback);

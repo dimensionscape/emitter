@@ -1,4 +1,4 @@
-package emitter.util;
+package emitter.signals;
 
 import haxe.Constraints.Function;
 
@@ -11,8 +11,8 @@ import haxe.Constraints.Function;
  * @param T The function type.
  */
 @:callable
-abstract TypedFunction<T>(Function) to Function to Dynamic {
-	@:from private static inline function fromType<T>(t:T):TypedFunction<T> {
+abstract SignalHandler<T>(Function) from Function to Function to Dynamic {
+	@:from private static inline function fromType<T>(t:T):SignalHandler<T> {
 		return cast t;
 	}
 }
