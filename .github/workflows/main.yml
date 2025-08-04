@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  Run-Examples:
+  emitter-test:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -22,7 +22,7 @@ jobs:
       - name: Show Haxe version
         run: haxe -version
 
-      - name: Run Eval        
+      - name: Run Examples        
         run: |
           cd example
           haxe build.hxml
