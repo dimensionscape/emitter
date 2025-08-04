@@ -1,3 +1,4 @@
 -lib utest
+-cp ../src
 -main TestMain
 --run TestMain.hx
