@@ -29,7 +29,7 @@ Here's a basic example of how to use the library:
 
 ### Imports
 ```hx
-import emitter.signals.Emitter;
+import emitter.Emitter;
 import emitter.signals.SignalType;
 ```
 
@@ -65,6 +65,16 @@ For more advanced usage and detailed information, please refer to the code docum
 - **Haxe 4.2+**
 
 *(Note: This library uses the latest haxe features like method overloading and rest arguments)*
+
+## Running Tests
+
+To execute the test suite locally, run the following command:
+
+```bash
+haxe test/test.hxml
+```
+
+This will compile and run the tests using the `utest` framework.
 
 ## Contributing
 
