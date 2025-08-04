@@ -6,6 +6,6 @@
     "description": "Emitter is a tiny, ultra lightweight and super performant signal-like event handling library with type safety.",
 	"version": "1.0.0",
 	"classPath": "src/",
-	"releasenote": "",
+	"releasenote": "Stable Release",
 	"contributors": [ "Dimensionscape" ]
 }
