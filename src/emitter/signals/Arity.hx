@@ -11,7 +11,6 @@ package emitter.signals;
  * must be provided explicitly by the developer to ensure correct invocation.
  */
 enum Arity {
-    
 	/** Listener expects no arguments. */
 	Zero;
 

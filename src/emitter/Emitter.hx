@@ -1,9 +1,10 @@
-package emitter.signals;
+package emitter;
 
 import haxe.Rest;
 import haxe.Constraints.Function;
 import emitter.signals.SignalType;
 import emitter.signals.SignalHandler;
+import emitter.signals.Arity;
 
 /**
  * ...
@@ -24,12 +25,11 @@ import emitter.signals.SignalHandler;
  * @see Emitter#totalCallbacks
  * @see Emitter#prepend
  * @see Emitter#hasSignal
+ * @see Emitter#dispose
+ * @see Emitter#isReady
  */
-class Emitter {
-	@:noCompletion private var __signals:Map<String, Array<Function>>;
-	@:noCompletion private var __onceSignals:Map<String, Array<Function>>;
-	@:noCompletion private var __isReady:Bool = false;
-
+class Emitter extends BaseEmitter implements IEmitter {
+	// @:noCompletion private var __signals:Map<String, Array<Function>>;
 	@:noCompletion private inline function get_isReady():Bool {
 		return __isReady;
 	}
@@ -42,7 +42,9 @@ class Emitter {
 	/**
 	 * Creates a new instance of the Emitter class.
 	 */
-	public function new() {}
+	public function new() {
+		super();
+	}
 
 	/**
 	 * Returns the number of callbacks registered for a specific signal type.
@@ -50,7 +52,7 @@ class Emitter {
 	 * @param signal A SignalType<Dynamic> object representing the signal for which to count the callbacks.
 	 * @return An unsigned integer (UInt) representing the number of callbacks registered for the specified signal type. If the signal does not have any registered callbacks, it returns 0.
 	 */
-	public function callbackCount(signal:SignalType<Dynamic>):UInt {
+	override public function callbackCount(signal:SignalType<Function>):UInt {
 		if (__isReady && __signals.exists(signal)) {
 			var callbacks = __signals.get(signal);
 
@@ -75,159 +77,13 @@ class Emitter {
 	}
 
 	/**
-	 * Emits the specified signal with no arguments
-	 * @param type The type of signal to emit.
-	 */
-	@:keep overload extern public inline function emit<T>(type:SignalType<T>):Void {
-		if (!__isReady)
-			return;
-
-		var callbacks = __signals.get(type);
-
-		if (callbacks != null) {
-			var i = 0;
-			while (i < callbacks.length) {
-				var cb = callbacks[i];
-				cb();
-				if (callbacks[i] == cb)
-					i++;
-			}
-		}
-	}
-
-	/**
-	 * Emits the specified signal with one argument.
-	 * @param type The type of signal to emit.
-	 * @param a The argument to pass to the callback functions.
-	 */
-	@:keep overload extern public inline function emit<T, T1>(type:SignalType1<T, T1>, a:T1):Void {
-		if (!__isReady)
-			return;
-
-		var callbacks:Array<Function> = __signals.get(type);
-
-		if (callbacks != null) {
-			var i = 0;
-			while (i < callbacks.length) {
-				var cb = callbacks[i];
-
-				cb(a);
-
-				if (callbacks[i] == cb)
-					i++;
-			}
-		}
-	}
-
-	/**
-	 * Emits the specified signal with two arguments.
-	 * @param type The type of signal to emit.
-	 * @param a The first argument to pass to the callback functions.
-	 * @param b The second argument to pass to the callback functions.
-	 */
-	@:keep overload extern public inline function emit<T, T1, T2>(type:SignalType2<T, T1, T2>, a:T1, b:T2):Void {
-		if (!__isReady)
-			return;
-
-		var callbacks = __signals.get(type);
-		if (callbacks != null) {
-			var i = 0;
-			while (i < callbacks.length) {
-				var cb = callbacks[i];
-
-				cb(a, b);
-
-				if (callbacks[i] == cb)
-					i++;
-			}
-		}
-	}
-
-	/**
-	 * Emits the specified signal with three arguments.
-	 * @param type The type of signal to emit.
-	 * @param a The first argument to pass to the callback functions.
-	 * @param b The second argument to pass to the callback functions.
-	 * @param c The third argument to pass to the callback functions.
-	 */
-	@:keep overload extern public inline function emit<T, T1, T2, T3>(type:SignalType3<T, T1, T2, T3>, a:T1, b:T2, c:T3):Void {
-		if (!__isReady)
-			return;
-
-		var callbacks = __signals.get(type);
-		if (callbacks != null) {
-			var i = 0;
-			while (i < callbacks.length) {
-				var cb = callbacks[i];
-
-				cb(a, b, c);
-
-				if (callbacks[i] == cb)
-					i++;
-			}
-		}
-	}
-
-	/**
-	 * Emits the specified signal with four arguments.
-	 * @param type The type of signal to emit.
-	 * @param a The first argument to pass to the callback functions.
-	 * @param b The second argument to pass to the callback functions.
-	 * @param c The third argument to pass to the callback functions.
-	 * @param d The fourth argument to pass to the callback functions.
-	 */
-	@:keep overload extern public inline function emit<T, T1, T2, T3, T4>(type:SignalType4<T, T1, T2, T3, T4>, a:T1, b:T2, c:T3, d:T4):Void {
-		if (!__isReady)
-			return;
-
-		var callbacks = __signals.get(type);
-		if (callbacks != null) {
-			var i = 0;
-			while (i < callbacks.length) {
-				var cb = callbacks[i];
-				cb(a, b, c, d);
-
-				if (callbacks[i] == cb)
-					i++;
-			}
-		}
-	}
-
-	/**
-	 * Emits the specified signal with five arguments.
-	 * @param type The type of signal to emit.
-	 * @param a The first argument to pass to the callback functions.
-	 * @param b The second argument to pass to the callback functions.
-	 * @param c The third argument to pass to the callback functions.
-	 * @param d The fourth argument to pass to the callback functions.
-	 * @param e The fifth argument to pass to the callback functions.
-	 */
-	@:keep overload extern public inline function emit<T, T1, T2, T3, T4, T5>(type:SignalType5<T, T1, T2, T3, T4, T5>, a:T1, b:T2, c:T3, d:T4, e:T5):Void {
-		if (!__isReady)
-			return;
-
-		var callbacks = __signals.get(type);
-		if (callbacks != null) {
-			var i = 0;
-			while (i < callbacks.length) {
-				var cb = callbacks[i];
-
-				cb(a, b, c, d, e);
-
-				if (callbacks[i] == cb)
-					i++;
-			}
-		}
-	}
-
-	/**
 	 * Emits the specified signal with an arbitrary number of optional arguments.
 	 * This method trades type safety for greater flexibility when compared to the type safe
 	 * emit methods.
 	 * @param type The type of signal to emit.
 	 * @param args Additional arguments to pass to the callback functions.
 	 */
-	public function emitUntyped<T>(type:SignalType<T>, ...args):Void {
+	public function emitUntyped<T>(type:SignalType<T>, ...args:Dynamic):Void {
 		if (!__isReady)
 			return;
 
@@ -271,7 +127,7 @@ class Emitter {
 	 * @param signal The signal to check.
 	 * @return True if the signal is registered; otherwise, false.
 	 */
-	public function hasSignal(signal:SignalType<Dynamic>):Bool {
+	override public function hasSignal(signal:SignalType<Dynamic>):Bool {
 		return __isReady && __signals.exists(signal);
 	}
 
@@ -285,7 +141,7 @@ class Emitter {
 	 * @param callback The callback function to remove.
 	 * @return The Emitter instance for method chaining.
 	 */
-	public function off<T>(signal:SignalType<T>, callback:SignalHandler<T>):Emitter {
+	override public function off<T>(signal:SignalType<T>, callback:SignalHandler<T>):Emitter {
 		if (!__isReady)
 			return this;
 
@@ -311,7 +167,7 @@ class Emitter {
 	 * @param callback The callback function to invoke when the signal is emitted.
 	 * @return The Emitter instance for method chaining.
 	 */
-	public function on<T>(signal:SignalType<T>, callback:SignalHandler<T>):Emitter {
+	override public function on<T>(signal:SignalType<T>, callback:SignalHandler<T>):Emitter {
 		// lets lazy init our signals map to ensure lower gc pressure on certain objects
 		if (__ensureMap()) {
 			__signals.set(signal, [callback]);
@@ -350,7 +206,7 @@ class Emitter {
 	 * @param callback A SignalHandler<T> representing the callback function to prepend.
 	 * @return The Emitter object itself, allowing for method chaining.
 	 */
-	public function prepend<T>(signal:SignalType<T>, callback:SignalHandler<T>):Emitter {
+	override public function prepend<T>(signal:SignalType<T>, callback:SignalHandler<T>):Emitter {
 		if (__ensureMap()) {
 			__signals.set(signal, [callback]);
 		} else {
@@ -369,7 +225,7 @@ class Emitter {
 	 *
 	 * @param signal A SignalType<Dynamic> object representing the signal from which to remove all callbacks.
 	 */
-	public function removeCallbacks(signal:SignalType<Dynamic>):Void {
+	override public function removeCallbacks(signal:SignalType<Dynamic>):Void {
 		if (!__isReady)
 			return;
 
@@ -384,7 +240,7 @@ class Emitter {
 	 *
 	 * @return An unsigned integer (UInt) representing the total number of unique signals registered with the Emitter.
 	 */
-	public function signalCount():UInt {
+	override public function signalCount():UInt {
 		if (!__isReady)
 			return 0;
 
@@ -405,7 +261,7 @@ class Emitter {
 	 *
 	 * @return An unsigned integer (UInt) representing the total number of callbacks registered across all signals.
 	 */
-	public function totalCallbacks():UInt {
+	override public function totalCallbacks():UInt {
 		if (!__isReady)
 			return 0;
 
@@ -430,16 +286,17 @@ class Emitter {
 	 */
 	@:noCompletion private inline function __ensureMap():Bool {
 		if (!__isReady) {
-			__initSignals();
+			super.__initSignals();
 			__isReady = true;
 			return true;
 		}
 		return false;
 	}
 
-	@:noCompletion private inline function __initSignals():Void {
+	/* @:noCompletion private inline function __initSignals():Void {
 		__signals = new Map<String, Array<Function>>();
-	}
+	}*/
+	@:noCompletion override private function __init():Void {}
 
 	private inline function __onceHandler<T>(signal:SignalType<T>, callback:SignalHandler<T>, arity:Arity = null):Function {
 		return switch (arity) {
@@ -514,14 +371,5 @@ class Emitter {
 			off(signal, cast wrapper);
 		};
 		return wrapper;
-	}
-
-	@:noCompletion private inline function __push(signal:String, cb:Function):Void {
-		var list = __signals.get(signal);
-		if (list == null) {
-			__signals.set(signal, [cb]);
-		} else {
-			list.push(cb);
-		}
 	}
 }
