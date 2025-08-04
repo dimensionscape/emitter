@@ -22,7 +22,13 @@ jobs:
       - name: Show Haxe version
         run: haxe -version
 
-      - name: Run-Eval        
+      - name: Run Eval        
         run: |
           cd example
           haxe build.hxml
+          
+      - name: Run Unit Tests
+        run: |
+          haxelib install utest
+          cd test
+          haxe test.hxml
