@@ -1,0 +1,3 @@
+-cp src
+-cp ../src
+--run src/Example.hx

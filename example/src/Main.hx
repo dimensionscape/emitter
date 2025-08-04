@@ -8,8 +8,8 @@ import haxe.Constraints.Function;
  * ...
  * @author Christopher Speciale
  */
-class Example {
-	public static inline function run():Void {
+class Main {
+	public static inline function main():Void {
 		new Example();
 	}
 

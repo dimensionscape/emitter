@@ -1,4 +1,4 @@
-package example;
+package src;
 
 import emitter.signals.SignalType;
 
