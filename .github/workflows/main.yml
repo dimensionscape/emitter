@@ -37,7 +37,7 @@ jobs:
         run: |
           haxelib install dox
           cd script
-          haxe doc.hxml
+          haxe docs.hxml
           haxelib run dox -i xml -o ../docs
           
       - name: Upload Documentation
