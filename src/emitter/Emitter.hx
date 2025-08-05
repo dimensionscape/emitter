@@ -13,20 +13,25 @@ import emitter.signals.Arity;
 /**
  * Represents an event emitter that allows registration of listeners for various signals.
  * Signals are automatically removed once their last callback is unregistered,
- * keeping the emitter clean and lightweight.
- * @see Emitter#on
- * @see Emitter#off
- * @see Emitter#once
- * @see Emitter#emit
- * @see Emitter#emitUntyped
- * @see Emitter#removeCallbacks
- * @see Emitter#callbackCount
- * @see Emitter#signalCount
- * @see Emitter#totalCallbacks
- * @see Emitter#prepend
- * @see Emitter#hasSignal
- * @see Emitter#dispose
- * @see Emitter#isReady
+ * keeping the emitter clean and lightweight. The internal state is lazily initialized to avoid
+ * unnecessary memory churn and may be disposed of after initalization.
+ * 
+ * ####Public Variables 
+ * - [isReady](Emitter.html#isReady)
+ * 
+ * ####Public Methods
+ * - [on](Emitter.html#on)
+ * - [off](Emitter.html#off) 
+ * - [once](Emitter.html#once)
+ * - [emit](Emitter.html#emit)
+ * - [untyped](Emitter.html#untyped)
+ * - [removeCallbacks](Emitter.html#removeCallbacks)
+ * - [callbackCount](Emitter.html#callbackCount)
+ * - [signalCount](Emitter.html#signalCount)
+ * - [totalCallbacks](Emitter.html#totalCallbacks)
+ * - [prepend](Emitter.html#prepend)
+ * - [hasSignal](Emitter.html#hasSignal)
+ * - [dispose](Emitter.html#dispose)
  */
 class Emitter extends BaseEmitter implements IEmitter {
 	// @:noCompletion private var __signals:Map<String, Array<Function>>;

@@ -1,5 +1,0 @@
--cp ../src
--D doc-gen
---macro include('emitter')
---no-output
--xml xml/docs.xml
