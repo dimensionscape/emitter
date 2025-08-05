@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  emitter-test:
+  emitter-tasks:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,3 +32,11 @@ jobs:
           haxelib install utest
           cd test
           haxe test.hxml
+
+      - name: Doc Gen
+        run: |
+          haxelib install dox
+          cd scripts
+          haxe doc.hxml
+          haxelib run dox -i xml -o ../docs
+          
