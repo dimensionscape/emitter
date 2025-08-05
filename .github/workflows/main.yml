@@ -36,7 +36,13 @@ jobs:
       - name: Doc Gen
         run: |
           haxelib install dox
-          cd scripts
+          cd script
           haxe doc.hxml
           haxelib run dox -i xml -o ../docs
+          
+      - name: Upload Documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: emitter-docs
+          path: docs
           
