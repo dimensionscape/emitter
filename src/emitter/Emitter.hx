@@ -130,16 +130,13 @@ class Emitter implements IEmitter {
 	}
 
 	/**
-		Whether anything listens for events of `type`, or with `listener`
-		given, whether that does. Exact at every moment: a listener removed
-		during a dispatch is gone from here at once.
+		Whether anything listens for events of `type`. Exact at every moment:
+		a listener removed during a dispatch is gone from here at once. To ask
+		about one listener, `has(type, listener)`.
 	**/
-	public function hasEventListener<T:Event>(type:EventType<T>, ?listener:T->Void):Bool {
+	public function hasEventListener(type:String):Bool {
 		var lane:Null<Lane> = __events;
-		if (lane == null) {
-			return false;
-		}
-		return listener == null ? lane.listOf(type) != null : lane.has(type, listener);
+		return lane != null && lane.listOf(type) != null;
 	}
 
 	/**
@@ -456,6 +453,44 @@ class Emitter implements IEmitter {
 		return this;
 	}
 
+	/**
+		Whether `listener` listens for events of `type`; with no listener,
+		whether anything does (`hasEventListener`).
+	**/
+	overload extern public inline function has<T:Event>(type:EventType<T>, ?listener:T->Void):Bool {
+		return listener == null ? hasEventListener(type) : __hasEvent(type, listener);
+	}
+
+	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
+	overload extern public inline function has(signal:Signal0, ?listener:Void->Void):Bool {
+		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
+	}
+
+	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
+	overload extern public inline function has<A>(signal:Signal1<A>, ?listener:A->Void):Bool {
+		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
+	}
+
+	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
+	overload extern public inline function has<A, B>(signal:Signal2<A, B>, ?listener:(A, B) -> Void):Bool {
+		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
+	}
+
+	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
+	overload extern public inline function has<A, B, C>(signal:Signal3<A, B, C>, ?listener:(A, B, C) -> Void):Bool {
+		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
+	}
+
+	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
+	overload extern public inline function has<A, B, C, D>(signal:Signal4<A, B, C, D>, ?listener:(A, B, C, D) -> Void):Bool {
+		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
+	}
+
+	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
+	overload extern public inline function has<A, B, C, D, E>(signal:Signal5<A, B, C, D, E>, ?listener:(A, B, C, D, E) -> Void):Bool {
+		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
+	}
+
 	// Signals -------------------------------------------------------------
 
 	/**
@@ -569,15 +604,12 @@ class Emitter implements IEmitter {
 	}
 
 	/**
-		Whether anything listens for `signal`, or with `listener` given,
-		whether that does. Exact at every moment, as `hasEventListener` is.
+		Whether anything listens for `signal`. Exact at every moment, as
+		`hasEventListener` is. To ask about one listener, `has(signal, listener)`.
 	**/
-	public function hasSignalListener(signal:String, ?listener:Function):Bool {
+	public function hasSignalListener(signal:String):Bool {
 		var lane:Null<Lane> = __signals;
-		if (lane == null) {
-			return false;
-		}
-		return listener == null ? lane.listOf(signal) != null : lane.has(signal, listener);
+		return lane != null && lane.listOf(signal) != null;
 	}
 
 	/** Removes every listener for `signal`, or with no signal, for every signal. **/
@@ -617,12 +649,10 @@ class Emitter implements IEmitter {
 		return value;
 	}
 
-	@:noCompletion private function __addEvent(type:String, listener:Function, priority:Int, prepend:Bool, state:Int):Void {
-		if (type == null) {
-			throw new ArgumentException("type", "An event type must not be null");
-		}
-		if (listener == null) {
-			throw new ArgumentException("listener", "A listener must not be null");
+	// Inlined into the three ways in, so adding is one call to the lane.
+	@:noCompletion private inline function __addEvent(type:String, listener:Function, priority:Int, prepend:Bool, state:Int):Void {
+		if (type == null || listener == null) {
+			__refuse(type == null ? "type" : "listener");
 		}
 		var lane:Null<Lane> = __events;
 		if (lane == null) {
@@ -645,6 +675,16 @@ class Emitter implements IEmitter {
 
 	@:noCompletion private function __prependEvent<T:Event>(type:EventType<T>, listener:T->Void, priority:Int):Void {
 		__addEvent(type, listener, priority, true, Listener.KEPT);
+	}
+
+	@:noCompletion private function __hasEvent<T:Event>(type:EventType<T>, listener:T->Void):Bool {
+		var lane:Null<Lane> = __events;
+		return lane != null && lane.has(type, listener);
+	}
+
+	@:noCompletion private function __hasSignal(signal:String, listener:Function):Bool {
+		var lane:Null<Lane> = __signals;
+		return lane != null && lane.has(signal, listener);
 	}
 
 	/**
@@ -792,11 +832,8 @@ class Emitter implements IEmitter {
 	}
 
 	@:noCompletion private function __addSignal(signal:String, listener:Function, priority:Int, prepend:Bool, state:Int):Void {
-		if (signal == null) {
-			throw new ArgumentException("signal", "A signal must not be null");
-		}
-		if (listener == null) {
-			throw new ArgumentException("listener", "A listener must not be null");
+		if (signal == null || listener == null) {
+			__refuse(signal == null ? "signal" : "listener");
 		}
 		var lane:Null<Lane> = __signals;
 		if (lane == null) {
@@ -804,6 +841,11 @@ class Emitter implements IEmitter {
 			__signals = lane;
 		}
 		lane.add(signal, listener, priority, prepend, state, false);
+	}
+
+	/** Throws for an add given a null `argument`. **/
+	@:noCompletion private function __refuse(argument:String):Void {
+		throw new ArgumentException(argument, "An emitter's " + argument + " must not be null");
 	}
 
 	@:noCompletion private function __removeSignal(signal:String, listener:Function):Void {

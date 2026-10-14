@@ -257,10 +257,33 @@ class SignalTest extends Test {
 		Assert.isFalse(emitter.hasSignalListener(S1));
 		emitter.on(S1, a);
 		Assert.isTrue(emitter.hasSignalListener(S1));
-		Assert.isTrue(emitter.hasSignalListener(S1, a));
-		Assert.isFalse(emitter.hasSignalListener(S1, b));
+		Assert.isTrue(emitter.has(S1, a));
+		Assert.isFalse(emitter.has(S1, b));
 		emitter.off(S1, a);
 		Assert.isFalse(emitter.hasSignalListener(S1));
+	}
+
+	function testHasAsksAboutOneListenerAtEachArity() {
+		var emitter = new Emitter();
+		var f0 = function() {};
+		var f1 = function(a:Int) {};
+		var f2 = function(a:Int, b:String) {};
+		var f3 = function(a:Int, b:String, c:Bool) {};
+		var f4 = function(a:Int, b:String, c:Bool, d:Float) {};
+		var f5 = function(a:Int, b:String, c:Bool, d:Float, e:Array<Int>) {};
+		Assert.isFalse(emitter.has(S0) || emitter.has(S1) || emitter.has(S5));
+		emitter.on(S0, f0).on(S1, f1).on(S2, f2).on(S3, f3).on(S4, f4).on(S5, f5);
+		Assert.isTrue(emitter.has(S0) && emitter.has(S0, f0));
+		Assert.isTrue(emitter.has(S1) && emitter.has(S1, f1));
+		Assert.isTrue(emitter.has(S2) && emitter.has(S2, f2));
+		Assert.isTrue(emitter.has(S3) && emitter.has(S3, f3));
+		Assert.isTrue(emitter.has(S4) && emitter.has(S4, f4));
+		Assert.isTrue(emitter.has(S5) && emitter.has(S5, f5));
+		Assert.isFalse(emitter.has(S1, function(a:Int) {}));
+		emitter.off(S3, f3);
+		Assert.isFalse(emitter.has(S3, f3));
+		Assert.isFalse(emitter.has(S3));
+		Assert.isFalse(emitter.has(SHARED_EVENT));
 	}
 
 	function testRemoveSignalListenersOfOneOrAll() {

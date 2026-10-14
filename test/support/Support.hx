@@ -112,8 +112,8 @@ class Holder implements IEmitter {
 		emitter.removeEventListener(type, listener);
 	}
 
-	public function hasEventListener<T:Event>(type:EventType<T>, ?listener:T->Void):Bool {
-		return emitter.hasEventListener(type, listener);
+	public function hasEventListener(type:String):Bool {
+		return emitter.hasEventListener(type);
 	}
 
 	public function dispatchEvent(event:Event):Bool {

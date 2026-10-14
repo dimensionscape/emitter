@@ -11,12 +11,14 @@ import haxe.ds.StringMap;
 
 	**Finding a type.** Natively and on JavaScript, the types listened for
 	while there have been no more than `CHAINED` at once are chained in the
-	order each was first added (`first`); past that, and on the other
-	targets always, they are in `map`. Walking a few links finds a type
-	sooner than a map's lookup does (natively by which string it is before
-	what it says), and takes less memory than a map. Elsewhere a map's
-	lookup is about as cheap as one compare, and no type is chained. Never
-	both: once there is a map, every type is in it.
+	order each was first added: the first in the lane itself (`type` and
+	`list`), so finding it reads no more than finding a field, and the rest
+	in `next`. Past `CHAINED`, and on the other targets always, they are in
+	`map`. Walking a few links finds a type sooner than a map's lookup does
+	(natively by which string it is before what it says), and takes less
+	memory than a map. Elsewhere a map's lookup is about as cheap as one
+	compare, and nothing is chained. Never both: once there is a map, every
+	type is in it.
 
 	**Changing a list during a dispatch.** A dispatch walks the array that
 	was current when it reached this emitter, without copying it. While one
@@ -51,7 +53,13 @@ final class Lane {
 	public static inline var CHAINED:Int = #if cpp 8 #else 4 #end;
 
 	/** The first chained type, or null when none is or `map` holds them. **/
-	public var first:Null<Slot>;
+	public var type:Null<String>;
+
+	/** The first chained type's listeners. **/
+	public var list:Null<Array<Listener>>;
+
+	/** The chained types after the first. **/
+	public var next:Null<Slot>;
 	#end
 
 	/** Every type and its listeners, by type, once they are not chained. **/
@@ -68,7 +76,9 @@ final class Lane {
 
 	public function new(target:Null<IEmitter>) {
 		#if (cpp || js)
-		first = null;
+		type = null;
+		list = null;
+		next = null;
 		#end
 		map = null;
 		walking = 0;
@@ -82,12 +92,10 @@ final class Lane {
 	**/
 	public inline function listOf(type:String):Null<Array<Listener>> {
 		#if (cpp || js)
-		var first:Null<Slot> = this.first;
-		return if (first != null) {
-			sameString(first.type, type) ? first.list : listAfter(first, type);
-		} else {
-			mapped(type);
-		}
+		// The first chained type is found by one compare: with none chained,
+		// `this.type` is null and `this.list` too, so even a null type
+		// matching it finds nothing.
+		return sameString(this.type, type) ? this.list : listAfter(type);
 		#else
 		return mapped(type);
 		#end
@@ -103,24 +111,39 @@ final class Lane {
 		`prepend` before them. With `dedupe`, a function already there for
 		`type` is not added again, and keeps its place.
 
+		Inlined where an emitter adds, so the usual add (a listener after the
+		last, nothing walking) costs one call fewer; anything else is
+		`insert`'s.
+
 		@return `IGNORED`, `CHANGED`, or `TRANSITION` for the type's first.
 	**/
-	public function add(type:String, fn:Function, priority:Int, prepend:Bool, state:Int, dedupe:Bool):Int {
+	public inline function add(type:String, fn:Function, priority:Int, prepend:Bool, state:Int, dedupe:Bool):Int {
 		var list:Null<Array<Listener>> = listOf(type);
+		var result:Int = TRANSITION;
 		if (list == null) {
 			addType(type, [new Listener(fn, priority, state)]);
-			return TRANSITION;
-		}
-
-		var length:Int = list.length;
-		if (dedupe) {
-			for (i in 0...length) {
-				if (same(list[i].fn, fn)) {
-					return IGNORED;
-				}
+		} else if (dedupe && indexOf(list, fn) >= 0) {
+			result = IGNORED;
+		} else {
+			var entry:Listener = new Listener(fn, priority, state);
+			if (walking == 0 && !prepend && list[list.length - 1].priority >= priority) {
+				list.push(entry);
+			} else {
+				insert(type, list, entry, prepend);
 			}
+			result = CHANGED;
 		}
+		return result;
+	}
 
+	/**
+		Puts `entry` in its place among the listeners for `type`: after the
+		others of its priority, or with `prepend` before them. While a
+		dispatch walks the list, into a copy that replaces it.
+	**/
+	private function insert(type:String, list:Array<Listener>, entry:Listener, prepend:Bool):Void {
+		var priority:Int = entry.priority;
+		var length:Int = list.length;
 		var at:Int = length;
 		if (prepend) {
 			at = 0;
@@ -136,8 +159,6 @@ final class Lane {
 				at++;
 			}
 		}
-
-		var entry:Listener = new Listener(fn, priority, state);
 		if (walking > 0) {
 			var next:Array<Listener> = list.copy();
 			next.insert(at, entry);
@@ -147,24 +168,33 @@ final class Lane {
 		} else {
 			list.insert(at, entry);
 		}
-		return CHANGED;
 	}
 
 	/**
-		Removes the first listener for `type` that is `fn`.
+		Removes the first listener for `type` that is `fn`. Inlined where an
+		emitter removes, as `add` is.
 
 		@return `NOT_FOUND`, `CHANGED`, or `TRANSITION` for the type's last.
 	**/
-	public function remove(type:String, fn:Function):Int {
+	public inline function remove(type:String, fn:Function):Int {
 		var list:Null<Array<Listener>> = listOf(type);
-		if (list != null) {
-			for (i in 0...list.length) {
-				if (same(list[i].fn, fn)) {
-					return removeAt(type, list, i);
-				}
+		var at:Int = list == null ? -1 : indexOf(list, fn);
+		return at < 0 ? NOT_FOUND : removeAt(type, list, at);
+	}
+
+	/** Where `fn` is in `list`, or -1. **/
+	public static inline function indexOf(list:Array<Listener>, fn:Function):Int {
+		var found:Int = -1;
+		var i:Int = 0;
+		var length:Int = list.length;
+		while (i < length) {
+			if (same(list[i].fn, fn)) {
+				found = i;
+				break;
 			}
+			i++;
 		}
-		return NOT_FOUND;
+		return found;
 	}
 
 	/**
@@ -186,14 +216,7 @@ final class Lane {
 	/** Whether `fn` listens for `type`. **/
 	public function has(type:String, fn:Function):Bool {
 		var list:Null<Array<Listener>> = listOf(type);
-		if (list != null) {
-			for (i in 0...list.length) {
-				if (same(list[i].fn, fn)) {
-					return true;
-				}
-			}
-		}
-		return false;
+		return list != null && indexOf(list, fn) >= 0;
 	}
 
 	/** Forgets `type` and its listeners; whether it had any. **/
@@ -206,12 +229,42 @@ final class Lane {
 			return map.remove(type);
 		}
 		#if (cpp || js)
+		if (this.type == null) {
+			return false;
+		}
+		#if (cpp && !cppia)
+		// It was most likely found by which string it is: that first.
+		if (unlink(type, true)) {
+			return true;
+		}
+		#end
+		return unlink(type, false);
+		#else
+		return false;
+		#end
+	}
+
+	#if (cpp || js)
+	/** Takes the chained `type` out: found by which string it is, or by its text. **/
+	private function unlink(type:String, byPointer:Bool):Bool {
+		if (matches(this.type, type, byPointer)) {
+			var second:Null<Slot> = next;
+			if (second == null) {
+				this.type = null;
+				this.list = null;
+			} else {
+				this.type = second.type;
+				this.list = second.list;
+				this.next = second.next;
+			}
+			return true;
+		}
 		var previous:Null<Slot> = null;
-		var slot:Null<Slot> = first;
+		var slot:Null<Slot> = next;
 		while (slot != null) {
-			if (slot.type == type) {
+			if (matches(slot.type, type, byPointer)) {
 				if (previous == null) {
-					first = slot.next;
+					next = slot.next;
 				} else {
 					previous.next = slot.next;
 				}
@@ -220,9 +273,13 @@ final class Lane {
 			previous = slot;
 			slot = slot.next;
 		}
-		#end
 		return false;
 	}
+
+	private static inline function matches(a:Null<String>, b:String, byPointer:Bool):Bool {
+		return byPointer ? sameString(a, b) : a == b;
+	}
+	#end
 
 	/**
 		Forgets every type; the ones it had, in no particular order, or null
@@ -231,15 +288,17 @@ final class Lane {
 	public function clear():Null<Array<String>> {
 		var types:Null<Array<String>> = null;
 		#if (cpp || js)
-		var slot:Null<Slot> = first;
-		if (slot != null) {
-			types = [];
+		if (type != null) {
+			types = [type];
+			var slot:Null<Slot> = next;
 			while (slot != null) {
 				types.push(slot.type);
 				slot = slot.next;
 			}
 		}
-		first = null;
+		type = null;
+		list = null;
+		next = null;
 		#end
 		var map = this.map;
 		if (map != null) {
@@ -267,19 +326,19 @@ final class Lane {
 		#end
 	}
 
-	private function removeAt(type:String, list:Array<Listener>, at:Int):Int {
+	private inline function removeAt(type:String, list:Array<Listener>, at:Int):Int {
+		var result:Int = CHANGED;
 		if (list.length == 1) {
 			removeType(type);
-			return TRANSITION;
-		}
-		if (walking > 0) {
+			result = TRANSITION;
+		} else if (walking > 0) {
 			var next:Array<Listener> = list.copy();
 			next.splice(at, 1);
 			replace(type, next);
 		} else {
 			list.splice(at, 1);
 		}
-		return CHANGED;
+		return result;
 	}
 
 	/** Puts `list` in place of the listeners of `type`, which has some. **/
@@ -290,9 +349,13 @@ final class Lane {
 			return;
 		}
 		#if (cpp || js)
-		var slot:Null<Slot> = first;
+		if (sameString(this.type, type) || this.type == type) {
+			this.list = list;
+			return;
+		}
+		var slot:Null<Slot> = next;
 		while (slot != null) {
-			if (slot.type == type) {
+			if (sameString(slot.type, type) || slot.type == type) {
 				slot.list = list;
 				return;
 			}
@@ -309,12 +372,18 @@ final class Lane {
 			return;
 		}
 		#if (cpp || js)
-		var last:Null<Slot> = first;
-		if (last == null) {
-			first = new Slot(type, list);
+		if (this.type == null) {
+			this.type = type;
+			this.list = list;
 			return;
 		}
 		var count:Int = 1;
+		var last:Null<Slot> = next;
+		if (last == null) {
+			next = new Slot(type, list);
+			return;
+		}
+		count++;
 		while (last.next != null) {
 			last = last.next;
 			count++;
@@ -326,12 +395,15 @@ final class Lane {
 		// One more than the chain keeps: all of them go into a map, and stay
 		// there. A lane that went past the chain once may again.
 		map = new StringMap();
-		var slot:Null<Slot> = first;
+		map.set(this.type, this.list);
+		var slot:Null<Slot> = next;
 		while (slot != null) {
 			map.set(slot.type, slot.list);
 			slot = slot.next;
 		}
-		first = null;
+		this.type = null;
+		this.list = null;
+		next = null;
 		#else
 		map = new StringMap();
 		#end
@@ -341,14 +413,18 @@ final class Lane {
 
 	#if (cpp || js)
 	/**
-		The listeners for `type` from the slot after `first` on, or null. An
-		emitter is mostly asked about the very strings it was given, so
-		natively the walk compares which string each is first, which costs
-		nothing, and only then their text; on JavaScript one walk by `===`
-		is as cheap.
+		The listeners for `type`, known not to be the first chained one by
+		which string it is, or null; with nothing chained, from the map. An
+		emitter is mostly asked about the
+		very strings it was given, so natively the walk compares which
+		string each is first, which costs nothing, and only then their text;
+		on JavaScript one walk by `===` is as cheap.
 	**/
-	public function listAfter(first:Slot, type:String):Null<Array<Listener>> {
-		var slot:Null<Slot> = first.next;
+	public function listAfter(type:String):Null<Array<Listener>> {
+		if (this.type == null) {
+			return mapped(type);
+		}
+		var slot:Null<Slot> = next;
 		while (slot != null) {
 			if (sameString(slot.type, type)) {
 				return slot.list;
@@ -360,7 +436,11 @@ final class Lane {
 			return null;
 		}
 		var length:Int = type.length;
-		slot = first;
+		var first:String = this.type;
+		if (first.length == length && first == type) {
+			return this.list;
+		}
+		slot = next;
 		while (slot != null) {
 			var other:String = slot.type;
 			if (other.length == length && other == type) {
@@ -389,8 +469,8 @@ final class Lane {
 
 #if (cpp || js)
 /**
-	A chained type and its listeners: a lookup finds both in one object, so
-	nothing can pair one type with another's listeners.
+	A chained type after the first and its listeners: a lookup finds both
+	in one object, so nothing can pair one type with another's listeners.
 **/
 @:noCompletion
 final class Slot {

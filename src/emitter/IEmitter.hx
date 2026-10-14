@@ -20,10 +20,10 @@ interface IEmitter {
 	function removeEventListener<T:Event>(type:EventType<T>, listener:T->Void):Void;
 
 	/**
-		Whether anything listens for events of `type`, or with `listener`
-		given, whether that does. See `Emitter.hasEventListener`.
+		Whether anything listens for events of `type`. See
+		`Emitter.hasEventListener`.
 	**/
-	function hasEventListener<T:Event>(type:EventType<T>, ?listener:T->Void):Bool;
+	function hasEventListener(type:String):Bool;
 
 	/**
 		Dispatches `event` to the listeners for its type. See

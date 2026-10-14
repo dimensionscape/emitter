@@ -102,7 +102,7 @@ class EventListenerTest extends Test {
 		emitter.dispatchEvent(new Event(PING));
 		emitter.dispatchEvent(new Event(PING));
 		Assert.equals(2, calls);
-		Assert.isTrue(emitter.hasEventListener(PING, listener));
+		Assert.isTrue(emitter.has(PING, listener));
 	}
 
 	function testAllowDuplicatesAddsItAgainAndEachRemovalTakesOne() {
@@ -219,7 +219,7 @@ class EventListenerTest extends Test {
 		var calls = 0;
 		var listener = function(_:Event) calls++;
 		emitter.once(PING, listener);
-		Assert.isTrue(emitter.hasEventListener(PING, listener));
+		Assert.isTrue(emitter.has(PING, listener));
 		emitter.off(PING, listener);
 		Assert.isFalse(emitter.hasEventListener(PING));
 		emitter.dispatchEvent(new Event(PING));
@@ -230,7 +230,7 @@ class EventListenerTest extends Test {
 		var emitter = new Emitter();
 		var inside:Null<Bool> = null;
 		var listener:Event->Void = null;
-		listener = function(_:Event) inside = emitter.hasEventListener(PING, listener);
+		listener = function(_:Event) inside = emitter.has(PING, listener);
 		emitter.once(PING, listener);
 		emitter.dispatchEvent(new Event(PING));
 		Assert.isFalse(inside);
@@ -267,14 +267,14 @@ class EventListenerTest extends Test {
 		var emitter = new Emitter();
 		var a = function(_:Event) {};
 		var b = function(_:Event) {};
-		Assert.isFalse(emitter.hasEventListener(PING, a));
+		Assert.isFalse(emitter.has(PING, a));
 		emitter.on(PING, a);
 		Assert.isTrue(emitter.hasEventListener(PING));
-		Assert.isTrue(emitter.hasEventListener(PING, a));
-		Assert.isFalse(emitter.hasEventListener(PING, b));
-		Assert.isFalse(emitter.hasEventListener(PONG, a));
+		Assert.isTrue(emitter.has(PING, a));
+		Assert.isFalse(emitter.has(PING, b));
+		Assert.isFalse(emitter.has(PONG, a));
 		emitter.off(PING, a);
-		Assert.isFalse(emitter.hasEventListener(PING, a));
+		Assert.isFalse(emitter.has(PING, a));
 	}
 
 	function testManyTypesAreAllFoundAndForgotten() {
@@ -302,6 +302,34 @@ class EventListenerTest extends Test {
 		emitter.addEventListener("again", function(e:Event) heard.push(e.type));
 		emitter.dispatchEvent(new Event("again"));
 		Assert.equals("again", heard[20]);
+	}
+
+	function testRemovingAnyOfAFewTypesKeepsTheOthers() {
+		// Within the chain natively and on JavaScript: the first type, one in
+		// the middle and the last each go, and the rest are still found.
+		var emitter = new Emitter();
+		var heard = [];
+		var listen = function(name:String) emitter.addEventListener(name, function(e:Event) heard.push(e.type));
+		for (name in ["a", "b", "c", "d"]) {
+			listen(name);
+		}
+		emitter.removeEventListeners("a");
+		emitter.removeEventListeners("c");
+		listen("e");
+		emitter.removeEventListeners("e");
+		listen("f");
+		for (name in ["a", "b", "c", "d", "e", "f"]) {
+			emitter.dispatchEvent(new Event(name));
+		}
+		Assert.equals("b,d,f", heard.join(","));
+		emitter.removeEventListeners("b");
+		emitter.removeEventListeners("d");
+		emitter.removeEventListeners("f");
+		Assert.isFalse(emitter.hasEventListener("b"));
+		Assert.isFalse(emitter.hasEventListener("f"));
+		listen("g");
+		Assert.isTrue(emitter.dispatchEvent(new Event("g")));
+		Assert.equals("b,d,f,g", heard.join(","));
 	}
 
 	function testATypeMadeAtRunTimeFindsTheListenersOfTheSameText() {
@@ -344,7 +372,7 @@ class EventListenerTest extends Test {
 		var listener = function(e:Event) target = e.target;
 		var asInterface:IEmitter = holder;
 		asInterface.addEventListener(PING, listener);
-		Assert.isTrue(asInterface.hasEventListener(PING, listener));
+		Assert.isTrue(asInterface.hasEventListener(PING));
 		Assert.isTrue(asInterface.dispatchEvent(new Event(PING)));
 		Assert.equals(asInterface, target);
 		asInterface.removeEventListener(PING, listener);

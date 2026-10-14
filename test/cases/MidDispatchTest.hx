@@ -73,7 +73,7 @@ class MidDispatchTest extends Test {
 		emitter.dispatchEvent(new Event(PING));
 		emitter.dispatchEvent(new Event(PING));
 		Assert.equals(1, calls);
-		Assert.isFalse(emitter.hasEventListener(PING, self));
+		Assert.isFalse(emitter.has(PING, self));
 	}
 
 	function testAListenerMayRemoveAndAddItselfAgain() {
@@ -92,7 +92,7 @@ class MidDispatchTest extends Test {
 		// Added again, it went to the end.
 		emitter.dispatchEvent(new Event(PING));
 		Assert.equals("self,other,other,self", log.join(","));
-		Assert.isTrue(emitter.hasEventListener(PING, self));
+		Assert.isTrue(emitter.has(PING, self));
 	}
 
 	function testHasEventListenerIsExactDuringADispatch() {
@@ -100,9 +100,9 @@ class MidDispatchTest extends Test {
 		var answers = [];
 		var b = function(_:Event) {};
 		emitter.on(PING, function(_) {
-			answers.push(emitter.hasEventListener(PING, b));
+			answers.push(emitter.has(PING, b));
 			emitter.off(PING, b);
-			answers.push(emitter.hasEventListener(PING, b));
+			answers.push(emitter.has(PING, b));
 			answers.push(emitter.hasEventListener(PING));
 			emitter.removeEventListeners(PING);
 			answers.push(emitter.hasEventListener(PING));

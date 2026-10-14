@@ -38,7 +38,7 @@ class RemovalTest extends Test {
 	function testABoundMethodIsRemovedByReadingItAgain() {
 		var emitter = new Emitter();
 		emitter.addEventListener(PING, onPing);
-		Assert.isTrue(emitter.hasEventListener(PING, onPing));
+		Assert.isTrue(emitter.has(PING, onPing));
 		emitter.removeEventListener(PING, onPing);
 		Assert.isFalse(emitter.hasEventListener(PING));
 		emitter.dispatchEvent(new Event(PING));
@@ -64,8 +64,8 @@ class RemovalTest extends Test {
 		emitter.addEventListener(PING, onPing);
 		emitter.addEventListener(PING, other.onPing);
 		emitter.removeEventListener(PING, other.onPing);
-		Assert.isTrue(emitter.hasEventListener(PING, onPing));
-		Assert.isFalse(emitter.hasEventListener(PING, other.onPing));
+		Assert.isTrue(emitter.has(PING, onPing));
+		Assert.isFalse(emitter.has(PING, other.onPing));
 		emitter.dispatchEvent(new Event(PING));
 		Assert.equals(1, calls);
 		Assert.equals(0, other.calls);
@@ -74,7 +74,7 @@ class RemovalTest extends Test {
 	function testABoundMethodOnASignalIsRemovedByReadingItAgain() {
 		var emitter = new Emitter();
 		emitter.on(VALUE, onSignal);
-		Assert.isTrue(emitter.hasSignalListener(VALUE, onSignal));
+		Assert.isTrue(emitter.has(VALUE, onSignal));
 		emitter.off(VALUE, onSignal);
 		Assert.isFalse(emitter.hasSignalListener(VALUE));
 		emitter.emit(VALUE, 5);
@@ -111,7 +111,7 @@ class RemovalTest extends Test {
 				var emitter = new Emitter();
 				add(emitter);
 				add(emitter);
-				Assert.isTrue(emitter.hasEventListener(ValueEvent.VALUE, listener));
+				Assert.isTrue(emitter.has(ValueEvent.VALUE, listener));
 				remove(emitter);
 				Assert.isFalse(emitter.hasEventListener(ValueEvent.VALUE));
 				emitter.dispatchEvent(new ValueEvent(ValueEvent.VALUE, 1));
@@ -138,7 +138,7 @@ class RemovalTest extends Test {
 		emitter.addEventListener(ValueEvent.VALUE, general);
 		emitter.dispatchEvent(new ValueEvent(ValueEvent.VALUE, 1));
 		Assert.equals(1, calls);
-		Assert.isTrue(emitter.hasEventListener(ValueEvent.VALUE, general));
+		Assert.isTrue(emitter.has(ValueEvent.VALUE, general));
 		emitter.removeEventListener(ValueEvent.VALUE, general);
 		Assert.isFalse(emitter.hasEventListener(ValueEvent.VALUE));
 	}

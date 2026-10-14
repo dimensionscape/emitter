@@ -97,7 +97,7 @@ class GraphaxeReliesOnTest extends Test {
 		var press = function(_:Event) {};
 		button.addEventListener(POINTER_UP, function(_) {
 			button.removeEventListener(POINTER_UP, press);
-			answers.push(button.hasEventListener(POINTER_UP, press));
+			answers.push(button.has(POINTER_UP, press));
 			answers.push(stage.hasEventListener(POINTER_UP));
 			stage.addEventListener(POINTER_UP, press);
 			answers.push(stage.hasEventListener(POINTER_UP));
