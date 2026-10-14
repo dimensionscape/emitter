@@ -457,7 +457,9 @@ class Emitter implements IEmitter {
 		calls them: a copy, which the emitter never changes, and empty when
 		nothing listens. Each is the listener's subscription, so a framework
 		tells one from another (its own, say) by identity, on every target,
-		and calls one through `Subscription.listener`.
+		and calls one through `Subscription.listener`: one added with `once`
+		(`Subscription.once`) for one event only, cancelling it as it calls
+		it, as a dispatch would.
 
 		For a framework that hands events to the listeners some other way,
 		from a thread of its own for instance, with `listenerAdded` and

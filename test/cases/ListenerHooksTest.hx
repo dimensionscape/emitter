@@ -300,23 +300,26 @@ class ListenerHooksTest extends Test {
 		var subscriber = new Subscriber();
 		publisher.on(PING, a);
 		publisher.on(PING, subscriber.handle, 3);
-		publisher.once(PING, function(_) heard.push("c"));
+		var c = publisher.once(PING, function(_) heard.push("c"));
 		var d = publisher.on(PING, function(_) heard.push("d"), -2);
 		publisher.callCopy(new Event(PING));
 		Assert.equals("a,c,d", heard.join(","));
 		Assert.equals(1, subscriber.calls);
+		// A once listener called from the copy is spent, as a dispatch spends it.
+		Assert.isFalse(c.active, "a once listener called from the copy still listens");
 
 		heard = [];
 		publisher.off(PING, subscriber.handle);
 		d.cancel();
 		publisher.callCopy(new Event(PING));
-		Assert.equals("a,c", heard.join(","));
+		Assert.equals("a", heard.join(","));
 		Assert.equals(1, subscriber.calls);
 
-		// The once listener called by a dispatch here leaves the copy too.
+		// A once listener called by a dispatch here leaves the copy too.
+		publisher.once(PING, function(_) heard.push("e"));
 		heard = [];
 		publisher.dispatch(new Event(PING));
-		Assert.equals("a,c", heard.join(","));
+		Assert.equals("a,e", heard.join(","));
 		heard = [];
 		publisher.callCopy(new Event(PING));
 		Assert.equals("a", heard.join(","));
@@ -327,6 +330,21 @@ class ListenerHooksTest extends Test {
 		Assert.equals(1, publisher.copy.length);
 		publisher.clear();
 		Assert.equals(0, publisher.copy.length);
+	}
+
+	function testASubscriptionSaysWhetherItWasAddedWithOnce() {
+		var emitter = new Emitter();
+		Assert.isFalse(emitter.on(PING, function(_) {}).once);
+		Assert.isFalse(emitter.on(VALUE, function(_) {}).once);
+		var event = emitter.once(PONG, function(_) {});
+		var signal = emitter.once(VALUE, function(_) {});
+		Assert.isTrue(event.once);
+		Assert.isTrue(signal.once);
+		emitter.dispatch(new Event(PONG));
+		emitter.emit(VALUE, 1);
+		// Still what it was added as, once it has run.
+		Assert.isTrue(event.once && !event.active);
+		Assert.isTrue(signal.once && !signal.active);
 	}
 
 	function testAFrameworkTellsAListenerAddedTooLateAlone() {
@@ -408,11 +426,12 @@ private class Lister extends Emitter {
 }
 
 /**
-	Keeps `copy`, the functions listening for PING but its own, in the order
-	they run, as a framework handing them to another thread would.
+	Keeps `copy`, the listeners for PING but its own, in the order they run,
+	as a framework handing them to another thread would, and calls them from
+	it: a `once` listener once, cancelled as it is called.
 **/
 private class Publisher extends Emitter {
-	public var copy:Array<Event->Void> = [];
+	public var copy:Array<Subscription> = [];
 
 	var own:Subscription;
 
@@ -433,18 +452,26 @@ private class Publisher extends Emitter {
 		if (type != ListenerHooksTest.PING_NAME) {
 			return;
 		}
-		var next:Array<Event->Void> = [];
+		var next:Array<Subscription> = [];
 		for (subscription in listenersOf(type)) {
 			if (subscription != own) {
-				next.push(cast subscription.listener);
+				next.push(subscription);
 			}
 		}
 		copy = next;
 	}
 
 	public function callCopy(event:Event):Void {
-		for (listener in copy) {
-			listener(event);
+		// Cancelling a once listener replaces `copy`; this walks the one it had.
+		for (subscription in copy) {
+			if (subscription.once) {
+				if (!subscription.active) {
+					continue;
+				}
+				subscription.cancel();
+			}
+			var call:Event->Void = cast subscription.listener;
+			call(event);
 		}
 	}
 }

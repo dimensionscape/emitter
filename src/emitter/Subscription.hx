@@ -36,6 +36,14 @@ abstract Subscription(Listener) {
 	**/
 	public var listener(get, never):Function;
 
+	/**
+		Whether the listener was added with `once`. A framework that calls a
+		listener itself, as `Emitter.listenersOf` lets it, calls a `once`
+		listener for one event only and cancels it as it does, as a
+		dispatch would.
+	**/
+	public var once(get, never):Bool;
+
 	inline function new(entry:Listener) {
 		this = entry;
 	}
@@ -57,5 +65,9 @@ abstract Subscription(Listener) {
 
 	inline function get_listener():Function {
 		return this.fn;
+	}
+
+	inline function get_once():Bool {
+		return this.state & Listener.ONCE != 0;
 	}
 }

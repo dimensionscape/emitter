@@ -17,7 +17,7 @@ alongside.
   subscription; `allowDuplicates` keeps it instead. Signals keep duplicates.
 - **Hooks for frameworks:** `listenersChanged(type, present)` from every path that adds or removes,
   `listenerAdded` and `listenerRemoved` for each listener by the same paths, `listenersOf(type)` listing a type's
-  subscriptions in the order they run, `Subscription.listener`, `dispatchContained` with `listenerThrew`,
+  subscriptions in the order they run, `Subscription.listener` and `Subscription.once`, `dispatchContained` with `listenerThrew`,
   `dispatchLocal`, a delegate target (`new Emitter(owner)`), and `IEmitter`. A framework adds names its users know
   (`addEventListener` and the rest) as inline methods of its own.
 - **Tests** on hxcpp, the jvm, Node, eval, HashLink and Neko (`haxe test/all.hxml`), and a benchmark
