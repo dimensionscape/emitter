@@ -1,0 +1,3 @@
+# The tests on Neko: neko bin/test/neko/test.n
+test/common.hxml
+-neko bin/test/neko/test.n

@@ -1,0 +1,5 @@
+# What every target's test build shares. Run from the repository's root.
+-cp src
+-cp test
+-lib utest
+-main TestMain

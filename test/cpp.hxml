@@ -1,0 +1,6 @@
+# The tests natively: bin/test/cpp/TestMain (TestMain.exe on Windows).
+# HXCPP_STACK_TRACE keeps the stacks one test reads.
+test/common.hxml
+-D HXCPP_M64
+-D HXCPP_STACK_TRACE
+--cpp bin/test/cpp

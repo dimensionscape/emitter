@@ -1,0 +1,3 @@
+# The tests on Haxe's interpreter: built and run at once.
+test/common.hxml
+--interp

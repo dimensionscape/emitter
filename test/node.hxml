@@ -1,0 +1,4 @@
+# The tests on Node: node bin/test/node/test.js
+test/common.hxml
+-lib hxnodejs
+-js bin/test/node/test.js

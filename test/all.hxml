@@ -1,0 +1,6 @@
+# Builds and runs the tests on every target, or on those named after it:
+#   haxe test/all.hxml [eval] [node] [jvm] [cpp] [hl] [neko]
+# Run from the repository's root. HL and NEKO name the runtimes when they
+# are not on the PATH.
+-cp test
+--run RunTests

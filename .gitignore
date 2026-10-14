@@ -1,6 +1,5 @@
 /docs
 script/xml/docs.xml
-script/xml/docs.xml
-script/xml/docs.xml
-script/xml/docs.xml
 /script/xml
+/bin/
+/.haxelib/
