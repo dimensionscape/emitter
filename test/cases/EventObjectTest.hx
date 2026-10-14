@@ -52,12 +52,12 @@ class EventObjectTest extends Test {
 
 	function testReuseClearsWhatADispatchLeftAndKeepsWhatItIs() {
 		var emitter = new Emitter();
-		emitter.addEventListener("x", function(e:Event) {
+		emitter.on("x", function(e:Event) {
 			e.preventDefault();
 			e.stopImmediatePropagation();
 		});
 		var event = new Event("x", true, true);
-		emitter.dispatchEvent(event);
+		emitter.dispatch(event);
 		Assert.equals((emitter : IEmitter), event.target);
 		Assert.isTrue(event.defaultPrevented);
 		Assert.isTrue(event.propagationStopped);
@@ -75,12 +75,12 @@ class EventObjectTest extends Test {
 
 	function testCloneCopiesWhatTheEventSaysButNotTheStopFlags() {
 		var emitter = new Emitter();
-		emitter.addEventListener("x", function(e:Event) {
+		emitter.on("x", function(e:Event) {
 			e.preventDefault();
 			e.stopPropagation();
 		});
 		var event = new Event("x", true, true);
-		emitter.dispatchEvent(event);
+		emitter.dispatch(event);
 
 		var copy = event.clone();
 		Assert.notEquals(event, copy);
@@ -114,8 +114,8 @@ class EventObjectTest extends Test {
 	function testTargetIsTypedAsAnEmitter() {
 		var node = new Node("leaf");
 		var seen:Null<IEmitter> = null;
-		node.addEventListener(Event.CHANGE, function(e:Event) seen = e.target);
-		node.dispatchEvent(new Event(Event.CHANGE));
+		node.on(Event.CHANGE, function(e:Event) seen = e.target);
+		node.dispatch(new Event(Event.CHANGE));
 		Assert.equals((node : IEmitter), seen);
 		Assert.isTrue(Std.isOfType(seen, Node));
 		var back:Node = cast seen;

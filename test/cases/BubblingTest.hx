@@ -32,21 +32,21 @@ class BubblingTest extends Test {
 		leaf.on(PING, record(leaf));
 		mid.on(PING, record(mid));
 		root.on(PING, record(root));
-		Assert.isTrue(leaf.dispatchEvent(new Event(PING, true)));
+		Assert.isTrue(leaf.dispatch(new Event(PING, true)));
 		Assert.equals("leaf:leaf>leaf,mid:leaf>mid,root:leaf>root", log.join(","));
 	}
 
 	function testAnEventThatDoesNotBubbleNeverAsksForAParent() {
 		leaf.on(PING, record(leaf));
 		root.on(PING, record(root));
-		leaf.dispatchEvent(new Event(PING));
+		leaf.dispatch(new Event(PING));
 		Assert.equals("leaf:leaf>leaf", log.join(","));
 		Assert.equals(0, leaf.parentReads);
 		Assert.equals(0, mid.parentReads);
 	}
 
 	function testABubblingEventAsksEachEmitterOnceForItsParent() {
-		leaf.dispatchEvent(new Event(PING, true));
+		leaf.dispatch(new Event(PING, true));
 		Assert.equals(1, leaf.parentReads);
 		Assert.equals(1, mid.parentReads);
 		Assert.equals(1, root.parentReads);
@@ -60,7 +60,7 @@ class BubblingTest extends Test {
 		});
 		mid.on(PING, function(_) log.push("mid2"));
 		root.on(PING, record(root));
-		leaf.dispatchEvent(new Event(PING, true));
+		leaf.dispatch(new Event(PING, true));
 		Assert.equals("leaf:leaf>leaf,mid,mid2", log.join(","));
 		Assert.equals(0, mid.parentReads);
 	}
@@ -72,21 +72,21 @@ class BubblingTest extends Test {
 		});
 		mid.on(PING, function(_) log.push("mid2"));
 		root.on(PING, record(root));
-		leaf.dispatchEvent(new Event(PING, true));
+		leaf.dispatch(new Event(PING, true));
 		Assert.equals("mid", log.join(","));
 	}
 
 	function testDispatchSaysWhetherAnyEmitterOnTheWayListened() {
-		Assert.isFalse(leaf.dispatchEvent(new Event(PING, true)));
+		Assert.isFalse(leaf.dispatch(new Event(PING, true)));
 		root.on(PING, record(root));
-		Assert.isTrue(leaf.dispatchEvent(new Event(PING, true)));
-		Assert.isFalse(leaf.dispatchEvent(new Event(PING)));
+		Assert.isTrue(leaf.dispatch(new Event(PING, true)));
+		Assert.isFalse(leaf.dispatch(new Event(PING)));
 	}
 
 	function testCurrentTargetIsOnlySetWhereListenersRun() {
 		root.on(PING, record(root));
 		var event = new Event(PING, true);
-		leaf.dispatchEvent(event);
+		leaf.dispatch(event);
 		Assert.equals((root : IEmitter), event.currentTarget);
 	}
 
@@ -96,7 +96,7 @@ class BubblingTest extends Test {
 		var bottom = new Node("bottom", middle);
 		var seen:Null<IEmitter> = null;
 		middle.on(PING, function(e:Event) seen = e.currentTarget);
-		bottom.dispatchEvent(new Event(PING, true));
+		bottom.dispatch(new Event(PING, true));
 		Assert.equals((holder : IEmitter), seen);
 	}
 
@@ -105,7 +105,7 @@ class BubblingTest extends Test {
 			log.push("leaf");
 			root.on(PING, function(_) log.push("root, added on the way"));
 		});
-		leaf.dispatchEvent(new Event(PING, true));
+		leaf.dispatch(new Event(PING, true));
 		Assert.equals("leaf,root, added on the way", log.join(","));
 	}
 
@@ -114,10 +114,10 @@ class BubblingTest extends Test {
 			log.push("leaf");
 			leaf.on(PING, function(_) log.push("leaf, added"));
 		});
-		leaf.dispatchEvent(new Event(PING, true));
+		leaf.dispatch(new Event(PING, true));
 		Assert.equals("leaf", log.join(","));
 		log = [];
-		leaf.dispatchEvent(new Event(PING, true));
+		leaf.dispatch(new Event(PING, true));
 		Assert.equals("leaf,leaf, added", log.join(","));
 	}
 
@@ -125,7 +125,7 @@ class BubblingTest extends Test {
 		var rootListener = function(_:Event) log.push("root");
 		root.on(PING, rootListener);
 		leaf.on(PING, function(_) root.off(PING, rootListener));
-		leaf.dispatchEvent(new Event(PING, true));
+		leaf.dispatch(new Event(PING, true));
 		Assert.equals("", log.join(","));
 	}
 
@@ -135,7 +135,7 @@ class BubblingTest extends Test {
 		root.on(PING, record(root));
 		var event = new Event(PING, true);
 		@:privateAccess event.target = elsewhere;
-		mid.dispatchEvent(event);
+		mid.dispatch(event);
 		Assert.equals("mid:elsewhere>mid,root:elsewhere>root", log.join(","));
 		Assert.equals(0, elsewhere.parentReads);
 	}
@@ -145,7 +145,7 @@ class BubblingTest extends Test {
 		root.on(PING, record(root));
 		var caught:Dynamic = null;
 		try {
-			leaf.dispatchEvent(new Event(PING, true));
+			leaf.dispatch(new Event(PING, true));
 		} catch (e:Dynamic) {
 			caught = e;
 		}
@@ -157,7 +157,7 @@ class BubblingTest extends Test {
 		var quietMiddle = new Node("quiet", root);
 		var bottom = new Node("bottom", quietMiddle);
 		root.on(PING, record(root));
-		bottom.dispatchEvent(new Event(PING, true));
+		bottom.dispatch(new Event(PING, true));
 		Assert.equals("root:bottom>root", log.join(","));
 	}
 }

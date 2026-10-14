@@ -22,10 +22,20 @@ class GraphaxeCases {
 	static inline var S1:Signal1<Int> = "s1";
 	static inline var S3:Signal3<Int, Event, Int> = "s3";
 	static inline var SF:Signal1<Float> = "sf";
+	static inline var SN:Signal1<Int> = "sn";
 
 	static function listening(type:EventType<Event>, count:Int):EventEmitter {
 		var emitter = new EventEmitter();
 		for (_ in 0...count) {
+			emitter.addEventListener(type, function(_:Event) Bench.sink++);
+		}
+		return emitter;
+	}
+
+	/** Listening for four types alike in length and in their first and last characters, none of them `PING`. **/
+	static function many():EventEmitter {
+		var emitter = new EventEmitter();
+		for (type in ["pang", "peng", "pung", "pyng"]) {
 			emitter.addEventListener(type, function(_:Event) Bench.sink++);
 		}
 		return emitter;
@@ -90,7 +100,17 @@ class GraphaxeCases {
 				}
 			}
 		});
-		Bench.time("hasEventListener", function() {
+		Bench.time("dispatch, no listener for the type, 4 types listened", function() {
+			var both = [many(), many()];
+			var event = new Event(PING);
+			return function() {
+				for (i in 0...INNER) {
+					event.reset(PING);
+					both[i & 1].dispatchEvent(event);
+				}
+			}
+		});
+		Bench.time("has, the type has one", function() {
 			var both = [listening(PING, 1), listening(PING, 1)];
 			return function() {
 				for (i in 0...INNER) {
@@ -107,6 +127,17 @@ class GraphaxeCases {
 				for (_ in 0...INNER) {
 					shared.addEventListener(PING, listener);
 					shared.removeEventListener(PING, listener);
+				}
+			}
+		});
+		Bench.time("subscribe + cancel, the type has one", function() {
+			var both = [listening(PING, 1), listening(PING, 1)];
+			var listener = function(_:Event) Bench.sink++;
+			return function() {
+				for (i in 0...INNER) {
+					var emitter = both[i & 1];
+					emitter.addEventListener(PING, listener);
+					emitter.removeEventListener(PING, listener);
 				}
 			}
 		});
@@ -163,6 +194,38 @@ class GraphaxeCases {
 			return function() {
 				for (i in 0...INNER) {
 					both[i & 1].emit(S1, 1);
+				}
+			}
+		});
+		Bench.time("emit, no listener for the signal", function() {
+			var both = [signals(), signals()];
+			return function() {
+				for (i in 0...INNER) {
+					both[i & 1].emit(SN, 1);
+				}
+			}
+		});
+		for (name in ["on + off, the signal has one", "subscribe + cancel, the signal has one"]) {
+			Bench.time(name, function() {
+				var both = [signals(), signals()];
+				var listener = function(a:Int) Bench.sink += a;
+				return function() {
+					for (i in 0...INNER) {
+						var emitter = both[i & 1];
+						emitter.on(S1, listener);
+						emitter.off(S1, listener);
+					}
+				}
+			});
+		}
+		Bench.time("once, then emit", function() {
+			var both = [signals(), signals()];
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				for (i in 0...INNER) {
+					var emitter = both[i & 1];
+					emitter.once(S1, listener);
+					emitter.emit(S1, 1);
 				}
 			}
 		});

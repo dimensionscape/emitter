@@ -9,48 +9,50 @@ import haxe.exceptions.ArgumentException;
 /**
 	Listeners, and the two ways to call them.
 
-	**Events** are objects: an `Event`, or a class of your own that extends
-	it, dispatched to the listeners of its `type` with `dispatchEvent`. They
-	carry a target, can bubble up a chain of parents, and can be stopped and
-	cancelled. `addEventListener` and `removeEventListener` are their
-	ActionScript names; `on`, `off`, `once` and `prepend` take them too.
-
 	**Signals** are calls: `emit(signal, a, b)` calls each listener with
 	those arguments, typed by the signal (`Signal0` to `Signal5`), and makes
-	no object at all.
-
-	The two are kept apart, so an event and a signal may share a name.
+	no object at all. **Events** are objects: an `Event`, or a class of your
+	own that extends it, sent to the listeners of its `type` by
+	`dispatch(event)`. They carry a target, can bubble up a chain of
+	parents, and can be stopped and cancelled. The two are kept apart, so an
+	event and a signal may share a name.
 
 	```haxe
-	var button = new Emitter();
-	button.addEventListener(Event.CHANGE, function(event:Event):Void trace("changed"));
-	button.dispatchEvent(new Event(Event.CHANGE));
+	var MOVED:Signal2<Float, Float> = "moved";
+	var player = new Emitter();
+	var moved = player.on(MOVED, (x, y) -> trace(x + y));
+	player.emit(MOVED, 1.5, 2.5);
+	moved.cancel();
 
-	var SCORED:Signal1<Int> = "scored";
-	button.on(SCORED, function(points:Int):Void trace(points)).emit(SCORED, 10);
+	player.on(Event.CHANGE, event -> trace(event.target));
+	player.dispatch(new Event(Event.CHANGE));
 	```
+
+	The whole of it: `on` and `once` to listen, each answering with a
+	`Subscription` to cancel; `off` to remove a listener by its function;
+	`emit` and `dispatch`; `has`; and `clear`.
 
 	## Rules both lanes keep
 
 	- **Order**: the highest priority runs first; listeners of one priority
-	  run in the order they were added, and `prepend` puts one first among
-	  its priority. With no priorities given, first in, first out.
-	- **Duplicates**: on the event lane, adding a listener that is already
-	  there for the type does nothing (ActionScript's rule): it keeps its
-	  place and its priority. Set `allowDuplicates` to add it again instead.
-	  On the signal lane a listener added twice is called twice.
-	- **Changes during a dispatch**: each emitter's listeners for a type are
-	  taken as they are when a dispatch reaches it. A listener removed
-	  during the dispatch still runs for it; one added does not, until the
-	  next. An emitter a bubbling event has not reached yet is taken as it
-	  is when the event gets there, so a listener added to a parent from a
-	  child's listener runs for that very event.
-	- **Questions are answered as things are**: `hasEventListener`,
-	  `hasSignalListener` and `has` say what is there now, also during a
-	  dispatch. A `once` listener is gone before it is called.
-	- **Removal finds what was added**, on every target: a bound method
-	  (`removeEventListener(type, this.onClose)`) is found even where each
-	  read of it makes a new closure.
+	  run in the order they were added.
+	- **Duplicates**: for events, adding a function already listening for
+	  the type does nothing (ActionScript's rule): it keeps its place and
+	  priority, and `on` answers with its subscription. Set
+	  `allowDuplicates` to add it again instead. A signal listener added
+	  twice is called twice.
+	- **Changes during a dispatch**: each emitter's listeners for a name are
+	  taken as they are when a dispatch reaches it. A listener removed or
+	  cancelled during the dispatch still runs for it; one added does not,
+	  until the next. A listener added to a parent a bubbling event has not
+	  reached yet runs for that very event.
+	- **Questions are answered as things are**: `has` says what is there
+	  now, also during a dispatch. A `once` listener is gone before it is
+	  called.
+	- **Removal finds what was added**, on every target: a subscription is
+	  the listener itself, and `off` finds a bound method
+	  (`off(MOVED, this.onMoved)`) even where each read of it makes a new
+	  closure.
 	- **A listener that throws** stops the dispatch, and what it threw goes
 	  on to the caller as it was thrown (natively with its own stack). The
 	  emitter is left as it was. `dispatchContained` instead hands it to
@@ -63,14 +65,15 @@ import haxe.exceptions.ArgumentException;
 	are listened to. Every field starts null, so an emitter made by
 	`Type.createEmptyInstance` works without its constructor.
 
-	## Adapting it
+	## Building on it
 
 	A framework extends `Emitter` and overrides the hooks it needs:
 	`getEventParent` to bubble along its own tree, `listenersChanged` to
 	learn when a type gains its first listener or loses its last, and
 	`listenerThrew` to report a failure `dispatchContained` caught.
 	`dispatchLocal` runs one emitter's listeners for a propagation the
-	framework builds itself.
+	framework builds itself. Names a framework's users already know, such
+	as `addEventListener`, are one-line inline methods on its own subclass.
 **/
 @:access(emitter.Event)
 class Emitter implements IEmitter {
@@ -83,7 +86,7 @@ class Emitter implements IEmitter {
 	/**
 		Whether an event listener added again for a type it is already
 		listening for is added again, running once for each add, with each
-		`removeEventListener` removing one of them.
+		`off` removing one of them.
 
 		False by default: adding it again does nothing, as in ActionScript.
 		Set it on an emitter that holds a listener per connection or task,
@@ -104,84 +107,209 @@ class Emitter implements IEmitter {
 		__signals = null;
 	}
 
+	// Listening -----------------------------------------------------------
+
+	/**
+		Adds `listener` for events of `type`, and answers with its
+		subscription. A higher `priority` runs earlier; listeners of one
+		priority run in the order they were added.
+		@throws haxe.exceptions.ArgumentException When `type` or `listener` is null.
+	**/
+	overload extern public inline function on<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Subscription {
+		return __onEvent(type, listener, priority, Listener.KEPT);
+	}
+
+	/**
+		Adds `listener` for `signal`, and answers with its subscription. A
+		higher `priority` runs earlier; listeners of one priority run in the
+		order they were added.
+		@throws haxe.exceptions.ArgumentException When `signal` or `listener` is null.
+	**/
+	overload extern public inline function on<F:Function>(signal:Signal<F>, listener:F, priority:Int = 0):Subscription {
+		return __onSignal(signal, listener, priority, Listener.SIGNAL);
+	}
+
+	/**
+		Adds `listener` for the next event of `type` only: it is removed just
+		before it is called. Cancel its subscription, or `off`, to remove it
+		before then.
+	**/
+	overload extern public inline function once<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Subscription {
+		return __onEvent(type, listener, priority, Listener.ONCE);
+	}
+
+	/**
+		Adds `listener` for the next emit of `signal` only: it is removed just
+		before it is called. Cancel its subscription, or `off`, to remove it
+		before then.
+	**/
+	overload extern public inline function once<F:Function>(signal:Signal<F>, listener:F, priority:Int = 0):Subscription {
+		return __onSignal(signal, listener, priority, Listener.SIGNAL | Listener.ONCE);
+	}
+
+	/**
+		Removes `listener` for events of `type`: for a method, read again
+		(`off(type, this.onChange)`). A lambda is removed by its subscription.
+		Nothing happens if it is not there.
+	**/
+	overload extern public inline function off<T:Event>(type:EventType<T>, listener:T->Void):Void {
+		__offEvent(type, listener);
+	}
+
+	/**
+		Removes `listener` for `signal`, the first of them if it was added more
+		than once. Nothing happens if it is not there.
+	**/
+	overload extern public inline function off<F:Function>(signal:Signal<F>, listener:F):Void {
+		__offSignal(signal, listener);
+	}
+
+	/**
+		Whether anything listens for events of `type`, or with `listener`
+		given, whether that does. Exact at every moment: a listener removed
+		during a dispatch is gone from here at once.
+	**/
+	overload extern public inline function has<T:Event>(type:EventType<T>, ?listener:T->Void):Bool {
+		return listener == null ? __listened(__events, type) : __hasEvent(type, listener);
+	}
+
+	/** Whether anything listens for `signal`, or with `listener` given, whether that does. **/
+	overload extern public inline function has<F:Function>(signal:Signal<F>, ?listener:F):Bool {
+		return listener == null ? __listened(__signals, signal) : __hasSignal(signal, listener);
+	}
+
+	/** Removes every listener: for every event and every signal. **/
+	overload extern public inline function clear():Void {
+		__clearAll();
+	}
+
+	/** Removes every listener for events of `type`. **/
+	overload extern public inline function clear<T:Event>(type:EventType<T>):Void {
+		__clearEvents(type);
+	}
+
+	/** Removes every listener for `signal`. **/
+	overload extern public inline function clear<F:Function>(signal:Signal<F>):Void {
+		__clearSignals(signal);
+	}
+
+	// Signals -------------------------------------------------------------
+
+	/**
+		Calls each listener for `signal`. Allocates nothing.
+		@return Whether anything listened.
+	**/
+	overload extern public inline function emit(signal:Signal<Void->Void>):Bool {
+		var lane:Null<Lane> = __signals;
+		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
+		var heard:Bool = list != null;
+		if (heard) {
+			var only:Listener = list[0];
+			if (list.length == 1 && only.state == Listener.SIGNAL) {
+				var call:Void->Void = cast only.fn;
+				call();
+			} else {
+				__emit0(lane, signal, list);
+			}
+		}
+		return heard;
+	}
+
+	/**
+		Calls each listener for `signal` with `a`. Allocates nothing, except
+		that natively a primitive argument is boxed to be passed to a
+		function value (hxcpp keeps whole numbers from -1 to 255 boxed in
+		advance).
+		@return Whether anything listened.
+	**/
+	overload extern public inline function emit<A>(signal:Signal<A->Void>, a:A):Bool {
+		var lane:Null<Lane> = __signals;
+		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
+		var heard:Bool = list != null;
+		if (heard) {
+			var only:Listener = list[0];
+			if (list.length == 1 && only.state == Listener.SIGNAL) {
+				var call:A->Void = cast only.fn;
+				call(a);
+			} else {
+				__emit1(lane, signal, list, a);
+			}
+		}
+		return heard;
+	}
+
+	/** Calls each listener for `signal` with `a` and `b`. @return Whether anything listened. **/
+	overload extern public inline function emit<A, B>(signal:Signal<(A, B) -> Void>, a:A, b:B):Bool {
+		var lane:Null<Lane> = __signals;
+		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
+		var heard:Bool = list != null;
+		if (heard) {
+			var only:Listener = list[0];
+			if (list.length == 1 && only.state == Listener.SIGNAL) {
+				var call:(A, B) -> Void = cast only.fn;
+				call(a, b);
+			} else {
+				__emit2(lane, signal, list, a, b);
+			}
+		}
+		return heard;
+	}
+
+	/** Calls each listener for `signal` with `a`, `b` and `c`. @return Whether anything listened. **/
+	overload extern public inline function emit<A, B, C>(signal:Signal<(A, B, C) -> Void>, a:A, b:B, c:C):Bool {
+		var lane:Null<Lane> = __signals;
+		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
+		var heard:Bool = list != null;
+		if (heard) {
+			var only:Listener = list[0];
+			if (list.length == 1 && only.state == Listener.SIGNAL) {
+				var call:(A, B, C) -> Void = cast only.fn;
+				call(a, b, c);
+			} else {
+				__emit3(lane, signal, list, a, b, c);
+			}
+		}
+		return heard;
+	}
+
+	/** Calls each listener for `signal` with `a` to `d`. @return Whether anything listened. **/
+	overload extern public inline function emit<A, B, C, D>(signal:Signal<(A, B, C, D) -> Void>, a:A, b:B, c:C, d:D):Bool {
+		var lane:Null<Lane> = __signals;
+		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
+		var heard:Bool = list != null;
+		if (heard) {
+			var only:Listener = list[0];
+			if (list.length == 1 && only.state == Listener.SIGNAL) {
+				var call:(A, B, C, D) -> Void = cast only.fn;
+				call(a, b, c, d);
+			} else {
+				__emit4(lane, signal, list, a, b, c, d);
+			}
+		}
+		return heard;
+	}
+
+	/** Calls each listener for `signal` with `a` to `e`. @return Whether anything listened. **/
+	overload extern public inline function emit<A, B, C, D, E>(signal:Signal<(A, B, C, D, E) -> Void>, a:A, b:B, c:C, d:D, e:E):Bool {
+		var lane:Null<Lane> = __signals;
+		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
+		var heard:Bool = list != null;
+		if (heard) {
+			var only:Listener = list[0];
+			if (list.length == 1 && only.state == Listener.SIGNAL) {
+				var call:(A, B, C, D, E) -> Void = cast only.fn;
+				call(a, b, c, d, e);
+			} else {
+				__emit5(lane, signal, list, a, b, c, d, e);
+			}
+		}
+		return heard;
+	}
+
 	// Events --------------------------------------------------------------
 
 	/**
-		Adds `listener` for events of `type`.
-
-		@param priority Where it runs among the others for `type`: higher
-		runs earlier, and any `Int` will do. Those of one priority run in the
-		order they were added.
-		@throws haxe.exceptions.ArgumentException When `type` or `listener` is null.
-	**/
-	public function addEventListener<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Void {
-		__addEvent(type, listener, priority, false, Listener.KEPT);
-	}
-
-	/**
-		Removes `listener` for events of `type`, the first of them if
-		`allowDuplicates` let it be added more than once. Nothing happens if
-		it is not there.
-	**/
-	public function removeEventListener<T:Event>(type:EventType<T>, listener:T->Void):Void {
-		var lane:Null<Lane> = __events;
-		if (lane != null && listener != null && lane.removeListener(type, listener) == Lane.TRANSITION) {
-			listenersChanged(type, false);
-		}
-	}
-
-	/**
-		Whether anything listens for events of `type`. Exact at every moment:
-		a listener removed during a dispatch is gone from here at once. To ask
-		about one listener, `has(type, listener)`.
-	**/
-	public function hasEventListener(type:String):Bool {
-		var lane:Null<Lane> = __events;
-		if (lane == null) {
-			return false;
-		}
-		#if (cpp || js || jvm)
-		// The first chained type always has listeners: its list need not be
-		// read. Both null is no type at all.
-		if (Lane.sameString(lane.type, type)) {
-			return type != null;
-		}
-		return lane.listAfter(type) != null;
-		#else
-		return lane.listOf(type) != null;
-		#end
-	}
-
-	/**
-		Removes every listener for events of `type`, or with no type, for
-		every event.
-	**/
-	public function removeEventListeners(?type:String):Void {
-		var lane:Null<Lane> = __events;
-		if (lane == null) {
-			return;
-		}
-		if (type != null) {
-			if (lane.removeType(type)) {
-				listenersChanged(type, false);
-			}
-			return;
-		}
-		if (lane.target == null && !lane.keepDuplicates) {
-			// Back to holding nothing. A dispatch walking one of its lists
-			// keeps the lane it started with.
-			__events = null;
-		}
-		var types:Null<Array<String>> = lane.clearAll();
-		if (types != null) {
-			for (gone in types) {
-				listenersChanged(gone, false);
-			}
-		}
-	}
-
-	/**
-		Dispatches `event` to the listeners for its type.
+		Sends `event` to the listeners for its type.
 
 		Sets the event's `target` to this emitter (or its delegate target)
 		when it has none, and its `currentTarget` to each emitter whose
@@ -200,7 +328,7 @@ class Emitter implements IEmitter {
 
 		@return Whether any emitter on the way had listeners for it.
 	**/
-	public function dispatchEvent(event:Event):Bool {
+	public function dispatch(event:Event):Bool {
 		if (event == null) {
 			return false;
 		}
@@ -235,6 +363,8 @@ class Emitter implements IEmitter {
 		return true;
 	}
 
+	// Hooks and paths for frameworks ---------------------------------------
+
 	/**
 		Runs this emitter's listeners for `event`, and nothing else: sets its
 		`currentTarget` when there are any, leaves its `target` as it is, and
@@ -251,8 +381,8 @@ class Emitter implements IEmitter {
 	}
 
 	/**
-		Dispatches `event` as `dispatchEvent` does, except that a listener
-		that throws does not stop the ones after it: what it threw goes to
+		Dispatches `event` as `dispatch` does, except that a listener that
+		throws does not stop the ones after it: what it threw goes to
 		`listenerThrew`, and the dispatch carries on.
 
 		For events whose listeners belong to unrelated parts of a program (a
@@ -277,12 +407,12 @@ class Emitter implements IEmitter {
 
 	/**
 		Called when events of `type` gain their first listener (`present`
-		true) or lose their last (false), by whatever path: an add, `once`,
-		`prepend`, a removal, a `once` listener being called, or removing
-		them all. A listener added again and ignored changes nothing, and is
-		not reported. Called after the change, so `hasEventListener` already
-		says so. Does nothing here; a framework overrides it to keep a
-		registry, such as the objects that want a call every frame.
+		true) or lose their last (false), by whatever path: `on`, `once`,
+		`off`, a subscription cancelled, a `once` listener being called, or
+		`clear`. A listener added again and ignored changes nothing, and is
+		not reported. Called after the change, so `has` already says so.
+		Does nothing here; a framework overrides it to keep a registry, such
+		as the objects that want a call every frame.
 
 		Only the event lane reports: a signal may share an event's name.
 	**/
@@ -295,382 +425,6 @@ class Emitter implements IEmitter {
 	**/
 	private function listenerThrew(error:haxe.Exception, event:Event):Void {
 		haxe.Log.trace("A \"" + event.type + "\" listener threw: " + error.details(), null);
-	}
-
-	// Both lanes ----------------------------------------------------------
-
-	/**
-		Adds `listener` for events of `type`: `addEventListener`, returning
-		this emitter.
-	**/
-	overload extern public inline function on<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Emitter {
-		addEventListener(type, listener, priority);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, after the others of its priority. **/
-	overload extern public inline function on(signal:Signal0, listener:Void->Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.KEPT);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, after the others of its priority. **/
-	overload extern public inline function on<A>(signal:Signal1<A>, listener:A->Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.KEPT);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, after the others of its priority. **/
-	overload extern public inline function on<A, B>(signal:Signal2<A, B>, listener:(A, B) -> Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.KEPT);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, after the others of its priority. **/
-	overload extern public inline function on<A, B, C>(signal:Signal3<A, B, C>, listener:(A, B, C) -> Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.KEPT);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, after the others of its priority. **/
-	overload extern public inline function on<A, B, C, D>(signal:Signal4<A, B, C, D>, listener:(A, B, C, D) -> Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.KEPT);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, after the others of its priority. **/
-	overload extern public inline function on<A, B, C, D, E>(signal:Signal5<A, B, C, D, E>, listener:(A, B, C, D, E) -> Void,
-			priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.KEPT);
-		return this;
-	}
-
-	/**
-		Removes `listener` for events of `type`: `removeEventListener`,
-		returning this emitter. Also cancels a `once` not yet called.
-	**/
-	overload extern public inline function off<T:Event>(type:EventType<T>, listener:T->Void):Emitter {
-		removeEventListener(type, listener);
-		return this;
-	}
-
-	/** Removes `listener` for `signal` (the first, if added more than once); also a pending `once`. **/
-	overload extern public inline function off(signal:Signal0, listener:Void->Void):Emitter {
-		__removeSignal(signal, listener);
-		return this;
-	}
-
-	/** Removes `listener` for `signal` (the first, if added more than once); also a pending `once`. **/
-	overload extern public inline function off<A>(signal:Signal1<A>, listener:A->Void):Emitter {
-		__removeSignal(signal, listener);
-		return this;
-	}
-
-	/** Removes `listener` for `signal` (the first, if added more than once); also a pending `once`. **/
-	overload extern public inline function off<A, B>(signal:Signal2<A, B>, listener:(A, B) -> Void):Emitter {
-		__removeSignal(signal, listener);
-		return this;
-	}
-
-	/** Removes `listener` for `signal` (the first, if added more than once); also a pending `once`. **/
-	overload extern public inline function off<A, B, C>(signal:Signal3<A, B, C>, listener:(A, B, C) -> Void):Emitter {
-		__removeSignal(signal, listener);
-		return this;
-	}
-
-	/** Removes `listener` for `signal` (the first, if added more than once); also a pending `once`. **/
-	overload extern public inline function off<A, B, C, D>(signal:Signal4<A, B, C, D>, listener:(A, B, C, D) -> Void):Emitter {
-		__removeSignal(signal, listener);
-		return this;
-	}
-
-	/** Removes `listener` for `signal` (the first, if added more than once); also a pending `once`. **/
-	overload extern public inline function off<A, B, C, D, E>(signal:Signal5<A, B, C, D, E>, listener:(A, B, C, D, E) -> Void):Emitter {
-		__removeSignal(signal, listener);
-		return this;
-	}
-
-	/**
-		Adds `listener` for the next event of `type` only: it is removed
-		just before it is called. `off(type, listener)` cancels it before
-		then. On the event lane a listener already there is not added again.
-	**/
-	overload extern public inline function once<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Emitter {
-		__onceEvent(type, listener, priority);
-		return this;
-	}
-
-	/** Adds `listener` for the next emit of `signal` only; `off(signal, listener)` cancels it. **/
-	overload extern public inline function once(signal:Signal0, listener:Void->Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.ONCE);
-		return this;
-	}
-
-	/** Adds `listener` for the next emit of `signal` only; `off(signal, listener)` cancels it. **/
-	overload extern public inline function once<A>(signal:Signal1<A>, listener:A->Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.ONCE);
-		return this;
-	}
-
-	/** Adds `listener` for the next emit of `signal` only; `off(signal, listener)` cancels it. **/
-	overload extern public inline function once<A, B>(signal:Signal2<A, B>, listener:(A, B) -> Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.ONCE);
-		return this;
-	}
-
-	/** Adds `listener` for the next emit of `signal` only; `off(signal, listener)` cancels it. **/
-	overload extern public inline function once<A, B, C>(signal:Signal3<A, B, C>, listener:(A, B, C) -> Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.ONCE);
-		return this;
-	}
-
-	/** Adds `listener` for the next emit of `signal` only; `off(signal, listener)` cancels it. **/
-	overload extern public inline function once<A, B, C, D>(signal:Signal4<A, B, C, D>, listener:(A, B, C, D) -> Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.ONCE);
-		return this;
-	}
-
-	/** Adds `listener` for the next emit of `signal` only; `off(signal, listener)` cancels it. **/
-	overload extern public inline function once<A, B, C, D, E>(signal:Signal5<A, B, C, D, E>, listener:(A, B, C, D, E) -> Void,
-			priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, false, Listener.ONCE);
-		return this;
-	}
-
-	/**
-		Adds `listener` for events of `type`, first among those of its
-		priority. On the event lane a listener already there is not added
-		again, and keeps its place.
-	**/
-	overload extern public inline function prepend<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Emitter {
-		__prependEvent(type, listener, priority);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, first among those of its priority. **/
-	overload extern public inline function prepend(signal:Signal0, listener:Void->Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, true, Listener.KEPT);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, first among those of its priority. **/
-	overload extern public inline function prepend<A>(signal:Signal1<A>, listener:A->Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, true, Listener.KEPT);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, first among those of its priority. **/
-	overload extern public inline function prepend<A, B>(signal:Signal2<A, B>, listener:(A, B) -> Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, true, Listener.KEPT);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, first among those of its priority. **/
-	overload extern public inline function prepend<A, B, C>(signal:Signal3<A, B, C>, listener:(A, B, C) -> Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, true, Listener.KEPT);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, first among those of its priority. **/
-	overload extern public inline function prepend<A, B, C, D>(signal:Signal4<A, B, C, D>, listener:(A, B, C, D) -> Void, priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, true, Listener.KEPT);
-		return this;
-	}
-
-	/** Adds `listener` for `signal`, first among those of its priority. **/
-	overload extern public inline function prepend<A, B, C, D, E>(signal:Signal5<A, B, C, D, E>, listener:(A, B, C, D, E) -> Void,
-			priority:Int = 0):Emitter {
-		__addSignal(signal, listener, priority, true, Listener.KEPT);
-		return this;
-	}
-
-	/**
-		Whether `listener` listens for events of `type`; with no listener,
-		whether anything does (`hasEventListener`).
-	**/
-	overload extern public inline function has<T:Event>(type:EventType<T>, ?listener:T->Void):Bool {
-		return listener == null ? hasEventListener(type) : __hasEvent(type, listener);
-	}
-
-	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
-	overload extern public inline function has(signal:Signal0, ?listener:Void->Void):Bool {
-		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
-	}
-
-	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
-	overload extern public inline function has<A>(signal:Signal1<A>, ?listener:A->Void):Bool {
-		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
-	}
-
-	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
-	overload extern public inline function has<A, B>(signal:Signal2<A, B>, ?listener:(A, B) -> Void):Bool {
-		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
-	}
-
-	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
-	overload extern public inline function has<A, B, C>(signal:Signal3<A, B, C>, ?listener:(A, B, C) -> Void):Bool {
-		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
-	}
-
-	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
-	overload extern public inline function has<A, B, C, D>(signal:Signal4<A, B, C, D>, ?listener:(A, B, C, D) -> Void):Bool {
-		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
-	}
-
-	/** Whether `listener` listens for `signal`; with no listener, whether anything does. **/
-	overload extern public inline function has<A, B, C, D, E>(signal:Signal5<A, B, C, D, E>, ?listener:(A, B, C, D, E) -> Void):Bool {
-		return listener == null ? hasSignalListener(signal) : __hasSignal(signal, listener);
-	}
-
-	// Signals -------------------------------------------------------------
-
-	/**
-		Calls each listener for `signal`. Allocates nothing.
-		@return Whether anything listened.
-	**/
-	overload extern public inline function emit(signal:Signal0):Bool {
-		var lane:Null<Lane> = __signals;
-		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
-		var heard:Bool = list != null;
-		if (heard) {
-			var only:Listener = list[0];
-			if (list.length == 1 && only.state == Listener.KEPT) {
-				var call:Void->Void = cast only.fn;
-				call();
-			} else {
-				__emit0(lane, signal, list);
-			}
-		}
-		return heard;
-	}
-
-	/**
-		Calls each listener for `signal` with `a`. Allocates nothing, except
-		that natively a primitive argument is boxed to be passed to a
-		function value (hxcpp keeps small integers boxed in advance).
-		@return Whether anything listened.
-	**/
-	overload extern public inline function emit<A>(signal:Signal1<A>, a:A):Bool {
-		var lane:Null<Lane> = __signals;
-		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
-		var heard:Bool = list != null;
-		if (heard) {
-			var only:Listener = list[0];
-			if (list.length == 1 && only.state == Listener.KEPT) {
-				var call:A->Void = cast only.fn;
-				call(a);
-			} else {
-				__emit1(lane, signal, list, a);
-			}
-		}
-		return heard;
-	}
-
-	/** Calls each listener for `signal` with `a` and `b`. @return Whether anything listened. **/
-	overload extern public inline function emit<A, B>(signal:Signal2<A, B>, a:A, b:B):Bool {
-		var lane:Null<Lane> = __signals;
-		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
-		var heard:Bool = list != null;
-		if (heard) {
-			var only:Listener = list[0];
-			if (list.length == 1 && only.state == Listener.KEPT) {
-				var call:(A, B) -> Void = cast only.fn;
-				call(a, b);
-			} else {
-				__emit2(lane, signal, list, a, b);
-			}
-		}
-		return heard;
-	}
-
-	/** Calls each listener for `signal` with `a`, `b` and `c`. @return Whether anything listened. **/
-	overload extern public inline function emit<A, B, C>(signal:Signal3<A, B, C>, a:A, b:B, c:C):Bool {
-		var lane:Null<Lane> = __signals;
-		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
-		var heard:Bool = list != null;
-		if (heard) {
-			var only:Listener = list[0];
-			if (list.length == 1 && only.state == Listener.KEPT) {
-				var call:(A, B, C) -> Void = cast only.fn;
-				call(a, b, c);
-			} else {
-				__emit3(lane, signal, list, a, b, c);
-			}
-		}
-		return heard;
-	}
-
-	/** Calls each listener for `signal` with `a` to `d`. @return Whether anything listened. **/
-	overload extern public inline function emit<A, B, C, D>(signal:Signal4<A, B, C, D>, a:A, b:B, c:C, d:D):Bool {
-		var lane:Null<Lane> = __signals;
-		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
-		var heard:Bool = list != null;
-		if (heard) {
-			var only:Listener = list[0];
-			if (list.length == 1 && only.state == Listener.KEPT) {
-				var call:(A, B, C, D) -> Void = cast only.fn;
-				call(a, b, c, d);
-			} else {
-				__emit4(lane, signal, list, a, b, c, d);
-			}
-		}
-		return heard;
-	}
-
-	/** Calls each listener for `signal` with `a` to `e`. @return Whether anything listened. **/
-	overload extern public inline function emit<A, B, C, D, E>(signal:Signal5<A, B, C, D, E>, a:A, b:B, c:C, d:D, e:E):Bool {
-		var lane:Null<Lane> = __signals;
-		var list:Null<Array<Listener>> = lane == null ? null : lane.listOf(signal);
-		var heard:Bool = list != null;
-		if (heard) {
-			var only:Listener = list[0];
-			if (list.length == 1 && only.state == Listener.KEPT) {
-				var call:(A, B, C, D, E) -> Void = cast only.fn;
-				call(a, b, c, d, e);
-			} else {
-				__emit5(lane, signal, list, a, b, c, d, e);
-			}
-		}
-		return heard;
-	}
-
-	/**
-		Whether anything listens for `signal`. Exact at every moment, as
-		`hasEventListener` is. To ask about one listener, `has(signal, listener)`.
-	**/
-	public function hasSignalListener(signal:String):Bool {
-		var lane:Null<Lane> = __signals;
-		if (lane == null) {
-			return false;
-		}
-		#if (cpp || js || jvm)
-		if (Lane.sameString(lane.type, signal)) {
-			return signal != null;
-		}
-		return lane.listAfter(signal) != null;
-		#else
-		return lane.listOf(signal) != null;
-		#end
-	}
-
-	/** Removes every listener for `signal`, or with no signal, for every signal. **/
-	public function removeSignalListeners(?signal:String):Void {
-		var lane:Null<Lane> = __signals;
-		if (lane == null) {
-			return;
-		}
-		if (signal != null) {
-			lane.removeType(signal);
-			return;
-		}
-		__signals = null;
-		lane.clearAll();
-	}
-
-	/** Removes every listener: for every event and every signal. **/
-	public function removeAllListeners():Void {
-		removeSignalListeners();
-		removeEventListeners();
 	}
 
 	// Inside --------------------------------------------------------------
@@ -690,9 +444,12 @@ class Emitter implements IEmitter {
 		return value;
 	}
 
-	// Inlined into the three ways in, so adding is one call to the lane.
-	@:noCompletion private inline function __addEvent(type:String, listener:Function, priority:Int, prepend:Bool, state:Int):Void {
-		// A null type is refused by the lane, on the path it always takes.
+	// The event paths take the listener through a generic signature, the
+	// same for adding, removing and asking: HashLink wraps a typed function
+	// passed through one, and a listener wrapped one way would not be found
+	// by a removal that wrapped it another.
+
+	@:noCompletion private function __onEvent<T:Event>(type:EventType<T>, listener:T->Void, priority:Int, state:Int):Subscription {
 		if (listener == null) {
 			__refuse("listener");
 		}
@@ -701,22 +458,22 @@ class Emitter implements IEmitter {
 			lane = new Lane(null);
 			__events = lane;
 		}
-		if (lane.add(type, listener, priority, prepend, state, !lane.keepDuplicates) == Lane.TRANSITION) {
+		var entry:Listener = new Listener(listener, priority, state, this, type);
+		var result:Int = lane.add(type, entry, !lane.keepDuplicates);
+		if (result == Lane.TRANSITION) {
 			listenersChanged(type, true);
+		} else if (result >= 0) {
+			// There already: its subscription is the answer.
+			entry = lane.listOf(type)[result];
 		}
+		return cast entry;
 	}
 
-	// `once` and `prepend` for events take the listener through a generic
-	// signature, as addEventListener and removeEventListener do: HashLink
-	// wraps a typed function passed through one, and a listener wrapped one
-	// way would not be found by a removal that wrapped it another.
-
-	@:noCompletion private function __onceEvent<T:Event>(type:EventType<T>, listener:T->Void, priority:Int):Void {
-		__addEvent(type, listener, priority, false, Listener.ONCE);
-	}
-
-	@:noCompletion private function __prependEvent<T:Event>(type:EventType<T>, listener:T->Void, priority:Int):Void {
-		__addEvent(type, listener, priority, true, Listener.KEPT);
+	@:noCompletion private function __offEvent<T:Event>(type:EventType<T>, listener:T->Void):Void {
+		var lane:Null<Lane> = __events;
+		if (lane != null && listener != null && lane.removeListener(type, listener) == Lane.TRANSITION) {
+			listenersChanged(type, false);
+		}
 	}
 
 	@:noCompletion private function __hasEvent<T:Event>(type:EventType<T>, listener:T->Void):Bool {
@@ -724,9 +481,106 @@ class Emitter implements IEmitter {
 		return lane != null && lane.has(type, listener);
 	}
 
+	@:noCompletion private function __onSignal(signal:String, listener:Function, priority:Int, state:Int):Subscription {
+		if (listener == null) {
+			__refuse("listener");
+		}
+		var lane:Null<Lane> = __signals;
+		if (lane == null) {
+			lane = new Lane(null);
+			__signals = lane;
+		}
+		var entry:Listener = new Listener(listener, priority, state, this, signal);
+		lane.add(signal, entry, false);
+		return cast entry;
+	}
+
+	@:noCompletion private function __offSignal(signal:String, listener:Function):Void {
+		var lane:Null<Lane> = __signals;
+		if (lane != null && listener != null) {
+			lane.removeListener(signal, listener);
+		}
+	}
+
 	@:noCompletion private function __hasSignal(signal:String, listener:Function):Bool {
 		var lane:Null<Lane> = __signals;
 		return lane != null && lane.has(signal, listener);
+	}
+
+	/**
+		Whether anything listens for `type` on `lane`. Where names are chained,
+		the first name always has listeners, so its list is not read; both
+		null is no name at all.
+	**/
+	@:noCompletion private static function __listened(lane:Null<Lane>, type:String):Bool {
+		if (lane == null) {
+			return false;
+		}
+		#if (cpp || js)
+		if (Lane.sameString(lane.type, type)) {
+			return type != null;
+		}
+		return lane.listAfter(type) != null;
+		#elseif jvm
+		var hash:Int = Lane.hashOf(type);
+		if (lane.hash == hash && Lane.sameText(lane.type, type)) {
+			return true;
+		}
+		return lane.listAfter(type, hash) != null;
+		#else
+		return lane.listOf(type) != null;
+		#end
+	}
+
+	/** `Subscription.cancel`, for a listener not yet gone. **/
+	@:noCompletion private function __cancel(entry:Listener):Void {
+		var signal:Bool = entry.state & Listener.SIGNAL != 0;
+		var lane:Null<Lane> = signal ? __signals : __events;
+		if (lane != null && lane.removeEntry(entry.type, entry) == Lane.TRANSITION && !signal) {
+			listenersChanged(entry.type, false);
+		}
+	}
+
+	@:noCompletion private function __clearEvents(type:String):Void {
+		var lane:Null<Lane> = __events;
+		if (lane != null && lane.removeType(type)) {
+			listenersChanged(type, false);
+		}
+	}
+
+	@:noCompletion private function __clearSignals(signal:String):Void {
+		var lane:Null<Lane> = __signals;
+		if (lane != null) {
+			lane.removeType(signal);
+		}
+	}
+
+	@:noCompletion private function __clearAll():Void {
+		var signals:Null<Lane> = __signals;
+		if (signals != null) {
+			// Back to holding nothing. A dispatch walking one of its lists
+			// keeps the lane it started with.
+			__signals = null;
+			signals.clearAll();
+		}
+		var lane:Null<Lane> = __events;
+		if (lane == null) {
+			return;
+		}
+		if (lane.target == null && !lane.keepDuplicates) {
+			__events = null;
+		}
+		var types:Null<Array<String>> = lane.clearAll();
+		if (types != null) {
+			for (gone in types) {
+				listenersChanged(gone, false);
+			}
+		}
+	}
+
+	/** Throws for an add given a null `argument`. **/
+	@:noCompletion private function __refuse(argument:String):Void {
+		throw new ArgumentException(argument, "An emitter's " + argument + " must not be null");
 	}
 
 	/**
@@ -753,9 +607,9 @@ class Emitter implements IEmitter {
 
 	/**
 		Walks `list`, the listeners for `event` when the dispatch reached
-		this emitter. While the walk is counted in `lane.walking`, adding and
-		removing replace the lane's array rather than change it, so nothing
-		changes this one under the walk.
+		this emitter. While the walk is counted in `lane.walking`, removing
+		and inserting replace the lane's array rather than change it, so
+		nothing changes this one under the walk.
 	**/
 	@:noCompletion private function __walk(lane:Lane, list:Array<Listener>, event:Event):Void {
 		var type:String = event.type;
@@ -764,7 +618,7 @@ class Emitter implements IEmitter {
 		try {
 			for (i in 0...length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.KEPT && !__spend(lane, type, entry, true)) {
+				if (entry.state != Listener.KEPT && !__mayRun(lane, type, entry, true)) {
 					continue;
 				}
 				var call:Event->Void = cast entry.fn;
@@ -794,7 +648,7 @@ class Emitter implements IEmitter {
 		try {
 			for (i in 0...length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.KEPT && !__spend(lane, type, entry, true)) {
+				if (entry.state != Listener.KEPT && !__mayRun(lane, type, entry, true)) {
 					continue;
 				}
 				try {
@@ -833,8 +687,7 @@ class Emitter implements IEmitter {
 	}
 
 	/**
-		Every dispatch but `dispatchEvent`'s usual one: an event handed on
-		from another emitter (its `target` set), one that bubbles, and every
+		Every dispatch but `dispatch`'s usual one: one that bubbles, and every
 		contained dispatch.
 	**/
 	@:noCompletion private function __dispatchFurther(event:Event, contained:Bool):Bool {
@@ -878,43 +731,25 @@ class Emitter implements IEmitter {
 	}
 
 	/**
-		Takes a `once` listener out before it is called. False when it has
-		been called already: a dispatch nested inside another reached it
-		first, and the outer one still holds it in the list it is walking.
+		Whether a listener walked that is not plainly kept runs. One removed
+		or cancelled during the dispatch still does. A `once` is taken out
+		before it is called, and not called if it has been already: a dispatch
+		nested inside another reached it first, and the outer one still holds
+		it in the list it is walking.
 	**/
-	@:noCompletion private function __spend(lane:Lane, type:String, entry:Listener, events:Bool):Bool {
-		if (entry.state == Listener.SPENT) {
+	@:noCompletion private function __mayRun(lane:Lane, type:String, entry:Listener, events:Bool):Bool {
+		var state:Int = entry.state;
+		if (state & Listener.ONCE == 0) {
+			return true;
+		}
+		if (state & Listener.SPENT != 0) {
 			return false;
 		}
-		entry.state = Listener.SPENT;
+		entry.state = state | Listener.SPENT;
 		if (lane.removeEntry(type, entry) == Lane.TRANSITION && events) {
 			listenersChanged(type, false);
 		}
 		return true;
-	}
-
-	@:noCompletion private function __addSignal(signal:String, listener:Function, priority:Int, prepend:Bool, state:Int):Void {
-		if (signal == null || listener == null) {
-			__refuse(signal == null ? "signal" : "listener");
-		}
-		var lane:Null<Lane> = __signals;
-		if (lane == null) {
-			lane = new Lane(null);
-			__signals = lane;
-		}
-		lane.add(signal, listener, priority, prepend, state, false);
-	}
-
-	/** Throws for an add given a null `argument`. **/
-	@:noCompletion private function __refuse(argument:String):Void {
-		throw new ArgumentException(argument, "An emitter's " + argument + " must not be null");
-	}
-
-	@:noCompletion private function __removeSignal(signal:String, listener:Function):Void {
-		var lane:Null<Lane> = __signals;
-		if (lane != null && listener != null) {
-			lane.removeListener(signal, listener);
-		}
 	}
 
 	// The walks `emit` hands over to past a single listener: generic, so
@@ -926,7 +761,7 @@ class Emitter implements IEmitter {
 		try {
 			for (i in 0...length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.KEPT && !__spend(lane, signal, entry, false)) {
+				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
 					continue;
 				}
 				var call:Void->Void = cast entry.fn;
@@ -945,7 +780,7 @@ class Emitter implements IEmitter {
 		try {
 			for (i in 0...length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.KEPT && !__spend(lane, signal, entry, false)) {
+				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
 					continue;
 				}
 				var call:A->Void = cast entry.fn;
@@ -964,7 +799,7 @@ class Emitter implements IEmitter {
 		try {
 			for (i in 0...length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.KEPT && !__spend(lane, signal, entry, false)) {
+				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
 					continue;
 				}
 				var call:(A, B) -> Void = cast entry.fn;
@@ -983,7 +818,7 @@ class Emitter implements IEmitter {
 		try {
 			for (i in 0...length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.KEPT && !__spend(lane, signal, entry, false)) {
+				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
 					continue;
 				}
 				var call:(A, B, C) -> Void = cast entry.fn;
@@ -1002,7 +837,7 @@ class Emitter implements IEmitter {
 		try {
 			for (i in 0...length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.KEPT && !__spend(lane, signal, entry, false)) {
+				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
 					continue;
 				}
 				var call:(A, B, C, D) -> Void = cast entry.fn;
@@ -1021,7 +856,7 @@ class Emitter implements IEmitter {
 		try {
 			for (i in 0...length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.KEPT && !__spend(lane, signal, entry, false)) {
+				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
 					continue;
 				}
 				var call:(A, B, C, D, E) -> Void = cast entry.fn;

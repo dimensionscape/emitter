@@ -8,7 +8,7 @@ package emitter;
 
 	## Dispatching one again
 
-	`Emitter.dispatchEvent` sets `target` only when it is null: an event
+	`Emitter.dispatch` sets `target` only when it is null: an event
 	that already has one is taken to be handed on from a listener of another
 	emitter, and keeps it. So to dispatch the same object again from scratch
 	(one event kept per frame, or per arrival on a socket), call `reuse()`
@@ -32,7 +32,7 @@ class Event {
 	public var type(default, null):String;
 
 	/**
-		Whether `Emitter.dispatchEvent` carries the event up from the emitter
+		Whether `Emitter.dispatch` carries the event up from the emitter
 		it is dispatched on, through each `getEventParent()`.
 	**/
 	public var bubbles(default, null):Bool;
@@ -81,7 +81,7 @@ class Event {
 
 	/**
 		@param type What happened: the name listeners are added for.
-		@param bubbles Whether `dispatchEvent` carries it up the parents.
+		@param bubbles Whether `dispatch` carries it up the parents.
 		@param cancelable Whether a listener may call `preventDefault()`.
 	**/
 	public function new(type:String, bubbles:Bool = false, cancelable:Bool = false) {

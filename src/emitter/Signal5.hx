@@ -3,7 +3,8 @@ package emitter;
 /**
 	The name of a signal that is emitted with five arguments: its listeners are
 	`(A, B, C, D, E)->Void`, and `Emitter.emit` takes exactly those, checked when it is
-	compiled. No event object is made for it.
+	compiled. No event object is made for it. Where it is used it
+	becomes a `Signal<(A, B, C, D, E)->Void>`.
 
 	```haxe
 	public static inline var SPAWNED:Signal5<String, Float, Float, Int, Bool> = "spawned";
@@ -13,6 +14,10 @@ package emitter;
 	may share a name: they are kept apart.
 **/
 abstract Signal5<A, B, C, D, E>(String) from String to String {
+	@:to private inline function toSignal():Signal<(A, B, C, D, E)->Void> {
+		return cast this;
+	}
+
 	@:op(A == B) private static inline function equals<A, B, C, D, E>(a:Signal5<A, B, C, D, E>, b:String):Bool {
 		return (a : String) == b;
 	}

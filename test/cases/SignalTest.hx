@@ -86,15 +86,15 @@ class SignalTest extends Test {
 		Assert.isFalse(emitter.emit(S0));
 	}
 
-	function testPriorityAndPrependOrderSignalsAsEvents() {
+	function testPriorityOrdersSignalsAsEvents() {
 		var emitter = new Emitter();
 		var log = [];
 		emitter.on(S1, function(_) log.push("a"));
 		emitter.on(S1, function(_) log.push("high"), 3);
-		emitter.prepend(S1, function(_) log.push("first"));
+		emitter.on(S1, function(_) log.push("b"));
 		emitter.on(S1, function(_) log.push("low"), -3);
 		emitter.emit(S1, 0);
-		Assert.equals("high,first,a,low", log.join(","));
+		Assert.equals("high,a,b,low", log.join(","));
 	}
 
 	function testOffRemovesAndUnknownIsNothing() {
@@ -108,7 +108,7 @@ class SignalTest extends Test {
 		emitter.off(S1, listener);
 		emitter.emit(S1, 2);
 		Assert.equals(2, calls);
-		Assert.isFalse(emitter.hasSignalListener(S1));
+		Assert.isFalse(emitter.has(S1));
 	}
 
 	function testASignalAndAnEventMayShareAName() {
@@ -117,12 +117,12 @@ class SignalTest extends Test {
 		emitter.on(SHARED_SIGNAL, function() log.push("signal"));
 		emitter.on(SHARED_EVENT, function(_) log.push("event"));
 		emitter.emit(SHARED_SIGNAL);
-		emitter.dispatchEvent(new Event(SHARED_EVENT));
-		emitter.removeSignalListeners(SHARED_SIGNAL);
-		Assert.isTrue(emitter.hasEventListener(SHARED_EVENT));
-		Assert.isFalse(emitter.hasSignalListener(SHARED_SIGNAL));
+		emitter.dispatch(new Event(SHARED_EVENT));
+		emitter.clear(SHARED_SIGNAL);
+		Assert.isTrue(emitter.has(SHARED_EVENT));
+		Assert.isFalse(emitter.has(SHARED_SIGNAL));
 		emitter.emit(SHARED_SIGNAL);
-		emitter.dispatchEvent(new Event(SHARED_EVENT));
+		emitter.dispatch(new Event(SHARED_EVENT));
 		Assert.equals("signal,event,event", log.join(","));
 	}
 
@@ -144,9 +144,103 @@ class SignalTest extends Test {
 			emitter.emit(S5, 5, "b", true, 0.5, []);
 		}
 		Assert.equals("0,1:1,2:2b,3:3btrue,4:4btrue0.5,5:5btrue0.50", log.join(","));
-		for (signal in [(S0 : String), S1, S2, S3, S4, S5]) {
-			Assert.isFalse(emitter.hasSignalListener(signal));
+		// Each by its own token: a plain string would ask about events.
+		Assert.isFalse(emitter.has(S0));
+		Assert.isFalse(emitter.has(S1));
+		Assert.isFalse(emitter.has(S2));
+		Assert.isFalse(emitter.has(S3));
+		Assert.isFalse(emitter.has(S4));
+		Assert.isFalse(emitter.has(S5));
+	}
+
+	function testAOnceBetweenOthersRunsOnceAndTheNextStillRunsAtEachArity() {
+		var emitter = new Emitter();
+		var log = [];
+		emitter.on(S0, function() log.push("a0"));
+		emitter.once(S0, function() log.push("o0"));
+		emitter.on(S0, function() log.push("b0"));
+		emitter.on(S1, function(a:Int) log.push("a1"));
+		emitter.once(S1, function(a:Int) log.push("o1"));
+		emitter.on(S1, function(a:Int) log.push("b1"));
+		emitter.on(S2, function(a:Int, b:String) log.push("a2"));
+		emitter.once(S2, function(a:Int, b:String) log.push("o2"));
+		emitter.on(S2, function(a:Int, b:String) log.push("b2"));
+		emitter.on(S3, function(a:Int, b:String, c:Bool) log.push("a3"));
+		emitter.once(S3, function(a:Int, b:String, c:Bool) log.push("o3"));
+		emitter.on(S3, function(a:Int, b:String, c:Bool) log.push("b3"));
+		emitter.on(S4, function(a:Int, b:String, c:Bool, d:Float) log.push("a4"));
+		emitter.once(S4, function(a:Int, b:String, c:Bool, d:Float) log.push("o4"));
+		emitter.on(S4, function(a:Int, b:String, c:Bool, d:Float) log.push("b4"));
+		emitter.on(S5, function(a:Int, b:String, c:Bool, d:Float, e:Array<Int>) log.push("a5"));
+		emitter.once(S5, function(a:Int, b:String, c:Bool, d:Float, e:Array<Int>) log.push("o5"));
+		emitter.on(S5, function(a:Int, b:String, c:Bool, d:Float, e:Array<Int>) log.push("b5"));
+		for (_ in 0...2) {
+			emitter.emit(S0);
+			emitter.emit(S1, 1);
+			emitter.emit(S2, 2, "b");
+			emitter.emit(S3, 3, "b", true);
+			emitter.emit(S4, 4, "b", true, 0.5);
+			emitter.emit(S5, 5, "b", true, 0.5, []);
 		}
+		Assert.equals("a0,o0,b0,a1,o1,b1,a2,o2,b2,a3,o3,b3,a4,o4,b4,a5,o5,b5,a0,b0,a1,b1,a2,b2,a3,b3,a4,b4,a5,b5", log.join(","));
+	}
+
+	function testAOnceANestedEmitReachedFirstIsPassedOverAtEachArity() {
+		// The outer emit holds the once in the list it walks, spent by the
+		// nested one: it passes over it to the listener after it.
+		var emitter = new Emitter();
+		var log = [];
+		var nested = false;
+		emitter.on(S0, function() if (!nested) {
+			nested = true;
+			emitter.emit(S0);
+		});
+		emitter.once(S0, function() log.push("once0"));
+		emitter.on(S0, function() log.push("last0"));
+		emitter.emit(S0);
+		nested = false;
+		emitter.on(S1, function(a:Int) if (!nested) {
+			nested = true;
+			emitter.emit(S1, a);
+		});
+		emitter.once(S1, function(a:Int) log.push("once1"));
+		emitter.on(S1, function(a:Int) log.push("last1"));
+		emitter.emit(S1, 1);
+		nested = false;
+		emitter.on(S2, function(a:Int, b:String) if (!nested) {
+			nested = true;
+			emitter.emit(S2, a, b);
+		});
+		emitter.once(S2, function(a:Int, b:String) log.push("once2"));
+		emitter.on(S2, function(a:Int, b:String) log.push("last2"));
+		emitter.emit(S2, 2, "b");
+		nested = false;
+		emitter.on(S3, function(a:Int, b:String, c:Bool) if (!nested) {
+			nested = true;
+			emitter.emit(S3, a, b, c);
+		});
+		emitter.once(S3, function(a:Int, b:String, c:Bool) log.push("once3"));
+		emitter.on(S3, function(a:Int, b:String, c:Bool) log.push("last3"));
+		emitter.emit(S3, 3, "b", true);
+		nested = false;
+		emitter.on(S4, function(a:Int, b:String, c:Bool, d:Float) if (!nested) {
+			nested = true;
+			emitter.emit(S4, a, b, c, d);
+		});
+		emitter.once(S4, function(a:Int, b:String, c:Bool, d:Float) log.push("once4"));
+		emitter.on(S4, function(a:Int, b:String, c:Bool, d:Float) log.push("last4"));
+		emitter.emit(S4, 4, "b", true, 0.5);
+		nested = false;
+		emitter.on(S5, function(a:Int, b:String, c:Bool, d:Float, e:Array<Int>) if (!nested) {
+			nested = true;
+			emitter.emit(S5, a, b, c, d, e);
+		});
+		emitter.once(S5, function(a:Int, b:String, c:Bool, d:Float, e:Array<Int>) log.push("once5"));
+		emitter.on(S5, function(a:Int, b:String, c:Bool, d:Float, e:Array<Int>) log.push("last5"));
+		emitter.emit(S5, 5, "b", true, 0.5, []);
+		Assert.equals("once0,last0,last0,once1,last1,last1,once2,last2,last2,once3,last3,last3,once4,last4,last4,once5,last5,last5",
+			log.join(","));
+		Assert.equals(0, Inside.signalWalks(emitter));
 	}
 
 	function testOnceAmongOthersRunsOnceAndTheOthersStay() {
@@ -200,7 +294,7 @@ class SignalTest extends Test {
 			if (once) {
 				once = false;
 				emitter.on(S1, function(_) log.push("high"), 10);
-				emitter.prepend(S1, function(_) log.push("first"));
+				emitter.on(S1, function(_) log.push("first"), 1);
 			}
 		});
 		emitter.on(S1, function(_) log.push("b"));
@@ -209,6 +303,50 @@ class SignalTest extends Test {
 		log = [];
 		emitter.emit(S1, 0);
 		Assert.equals("high,first,a,b", log.join(","));
+	}
+
+	function testNamesAlikeAreFoundAndAnAbsentOneIsAMiss() {
+		// Alike in length and in their first and last characters, as far as
+		// can be: what tells an absent name at once must not hide a present
+		// one. Three names stay chained everywhere; eight pass into a map on
+		// the jvm and JavaScript.
+		for (names in [["ab", "ac", "ad"], ["s0", "s1", "s2", "s3", "sa", "sb", "sz", "s9"]]) {
+			var emitter = new Emitter();
+			var log = [];
+			var absent:Signal1<Int> = "zz";
+			for (name in names) {
+				var signal:Signal1<Int> = name;
+				emitter.on(signal, function(v:Int) log.push(name + v));
+				// A miss now, so what tells a miss is made before the next name
+				// comes; the name just added, its text built at run time, is
+				// still found.
+				Assert.isFalse(emitter.has(absent));
+				var built:Signal1<Int> = [for (i in 0...name.length) name.charAt(i)].join("");
+				Assert.isTrue(emitter.has(built));
+			}
+			for (name in names) {
+				var signal:Signal1<Int> = name;
+				Assert.isTrue(emitter.emit(signal, 1));
+				var built:Signal1<Int> = [for (i in 0...name.length) name.charAt(i)].join("");
+				Assert.isTrue(emitter.has(built));
+			}
+			Assert.equals([for (name in names) name + "1"].join(","), log.join(","));
+			for (absent in ["sn", "ae", "s", "s00", "t0", "", "S0", "ba"]) {
+				var signal:Signal1<Int> = absent;
+				Assert.isFalse(emitter.emit(signal, 1));
+				Assert.isFalse(emitter.has(signal));
+			}
+			// Taking names out leaves the others found and the gone ones missed.
+			for (i in 0...names.length) {
+				if (i % 2 == 0) {
+					emitter.clear((names[i] : Signal1<Int>));
+				}
+			}
+			for (i in 0...names.length) {
+				var signal:Signal1<Int> = names[i];
+				Assert.equals(i % 2 == 1, emitter.emit(signal, 2));
+			}
+		}
 	}
 
 	function testASignalListenerMayRemoveItself() {
@@ -254,13 +392,13 @@ class SignalTest extends Test {
 		var emitter = new Emitter();
 		var a = function(x:Int) {};
 		var b = function(x:Int) {};
-		Assert.isFalse(emitter.hasSignalListener(S1));
+		Assert.isFalse(emitter.has(S1));
 		emitter.on(S1, a);
-		Assert.isTrue(emitter.hasSignalListener(S1));
+		Assert.isTrue(emitter.has(S1));
 		Assert.isTrue(emitter.has(S1, a));
 		Assert.isFalse(emitter.has(S1, b));
 		emitter.off(S1, a);
-		Assert.isFalse(emitter.hasSignalListener(S1));
+		Assert.isFalse(emitter.has(S1));
 	}
 
 	function testHasAsksAboutOneListenerAtEachArity() {
@@ -272,7 +410,12 @@ class SignalTest extends Test {
 		var f4 = function(a:Int, b:String, c:Bool, d:Float) {};
 		var f5 = function(a:Int, b:String, c:Bool, d:Float, e:Array<Int>) {};
 		Assert.isFalse(emitter.has(S0) || emitter.has(S1) || emitter.has(S5));
-		emitter.on(S0, f0).on(S1, f1).on(S2, f2).on(S3, f3).on(S4, f4).on(S5, f5);
+		emitter.on(S0, f0);
+		emitter.on(S1, f1);
+		emitter.on(S2, f2);
+		emitter.on(S3, f3);
+		emitter.on(S4, f4);
+		emitter.on(S5, f5);
 		Assert.isTrue(emitter.has(S0) && emitter.has(S0, f0));
 		Assert.isTrue(emitter.has(S1) && emitter.has(S1, f1));
 		Assert.isTrue(emitter.has(S2) && emitter.has(S2, f2));
@@ -290,11 +433,11 @@ class SignalTest extends Test {
 		var emitter = new Emitter();
 		emitter.on(S0, function() {});
 		emitter.on(S1, function(_) {});
-		emitter.removeSignalListeners(S0);
-		Assert.isFalse(emitter.hasSignalListener(S0));
-		Assert.isTrue(emitter.hasSignalListener(S1));
-		emitter.removeSignalListeners();
-		Assert.isFalse(emitter.hasSignalListener(S1));
+		emitter.clear(S0);
+		Assert.isFalse(emitter.has(S0));
+		Assert.isTrue(emitter.has(S1));
+		emitter.clear();
+		Assert.isFalse(emitter.has(S1));
 		Assert.isFalse(emitter.emit(S1, 1));
 	}
 
@@ -305,7 +448,7 @@ class SignalTest extends Test {
 		var noSignal:Signal0 = null;
 		Assert.raises(() -> emitter.on(noSignal, function() {}), haxe.exceptions.ArgumentException);
 		emitter.off(S0, nothing);
-		Assert.isFalse(emitter.hasSignalListener(S0));
+		Assert.isFalse(emitter.has(S0));
 	}
 
 	function testSignalsDoNotReportListenersChanged() {
@@ -316,13 +459,36 @@ class SignalTest extends Test {
 		emitter.once(S0, listener);
 		emitter.emit(S0);
 		emitter.on(S0, listener);
-		emitter.removeAllListeners();
+		emitter.clear();
 		Assert.equals("", emitter.log());
 	}
 
-	function testSignalsChainOnTheEmitter() {
+	function testASignalSubscriptionRemovesItsOwnListener() {
+		// A signal listener added twice is two listeners: each subscription
+		// removes its own, where off removes the first.
 		var emitter = new Emitter();
-		var listener = function(a:Int) {};
-		Assert.equals(emitter, emitter.on(S1, listener).prepend(S1, listener).once(S1, listener).off(S1, listener));
+		var log = [];
+		var listener = function(a:Int) log.push("listener" + a);
+		var first = emitter.on(S1, listener);
+		var second = emitter.on(S1, listener, 1);
+		Assert.notEquals(first, second);
+		first.cancel();
+		Assert.isFalse(first.active);
+		Assert.isTrue(second.active);
+		emitter.emit(S1, 1);
+		Assert.equals("listener1", log.join(","));
+		second.cancel();
+		Assert.isFalse(emitter.emit(S1, 2));
+	}
+
+	function testASignalAndAnEventOfOneNameAreClearedApart() {
+		var emitter = new Emitter();
+		var signal = emitter.on(SHARED_SIGNAL, function() {});
+		var event = emitter.on(SHARED_EVENT, function(_) {});
+		emitter.clear(SHARED_SIGNAL);
+		Assert.isFalse(signal.active);
+		Assert.isTrue(event.active);
+		event.cancel();
+		Assert.isFalse(emitter.has(SHARED_EVENT));
 	}
 }

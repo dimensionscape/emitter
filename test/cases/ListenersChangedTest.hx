@@ -16,11 +16,11 @@ class ListenersChangedTest extends Test {
 		var emitter = new Recording();
 		var a = function(_:Event) {};
 		var b = function(_:Event) {};
-		emitter.addEventListener(PING, a);
-		emitter.addEventListener(PING, b);
-		emitter.removeEventListener(PING, a);
-		emitter.removeEventListener(PING, a);
-		emitter.removeEventListener(PING, b);
+		emitter.on(PING, a);
+		emitter.on(PING, b);
+		emitter.off(PING, a);
+		emitter.off(PING, a);
+		emitter.off(PING, b);
 		Assert.equals("ping+,ping-", emitter.log());
 	}
 
@@ -29,28 +29,39 @@ class ListenersChangedTest extends Test {
 		var a = function(_:Event) {};
 		emitter.on(PING, a);
 		emitter.on(PING, a);
-		emitter.prepend(PING, a);
+		emitter.on(PING, a, 9);
 		emitter.once(PING, a);
 		Assert.equals("ping+", emitter.log());
 	}
 
-	function testPrependAndOnceReportTheFirstListener() {
+	function testOnceAndAPriorityReportTheFirstListener() {
 		var emitter = new Recording();
-		emitter.prepend(PING, function(_) {});
+		emitter.on(PING, function(_) {}, 3);
 		emitter.once(PONG, function(_) {});
 		Assert.equals("ping+,pong+", emitter.log());
+	}
+
+	function testCancellingTheLastSubscriptionReportsTheLast() {
+		var emitter = new Recording();
+		var a = emitter.on(PING, function(_) {});
+		var b = emitter.once(PING, function(_) {});
+		a.cancel();
+		Assert.equals("ping+", emitter.log());
+		b.cancel();
+		b.cancel();
+		Assert.equals("ping+,ping-", emitter.log());
 	}
 
 	function testAOnceListenerBeingCalledReportsTheLast() {
 		var emitter = new Recording();
 		emitter.once(PING, function(_) {});
-		emitter.dispatchEvent(new Event(PING));
+		emitter.dispatch(new Event(PING));
 		Assert.equals("ping+,ping-", emitter.log());
 
 		var many = new Recording();
 		many.once(PING, function(_) {});
 		many.once(PING, function(_) {});
-		many.dispatchEvent(new Event(PING));
+		many.dispatch(new Event(PING));
 		Assert.equals("ping+,ping-", many.log());
 	}
 
@@ -67,13 +78,13 @@ class ListenersChangedTest extends Test {
 		emitter.on(PING, function(_) {});
 		emitter.on(PING, function(_) {});
 		emitter.on(PONG, function(_) {});
-		emitter.removeEventListeners(PING);
-		emitter.removeEventListeners(PING);
+		emitter.clear(PING);
+		emitter.clear(PING);
 		Assert.equals("ping+,pong+,ping-", emitter.log());
 
-		emitter.addEventListener("third", function(_:Event) {});
+		emitter.on("third", function(_:Event) {});
 		emitter.changes = [];
-		emitter.removeEventListeners();
+		emitter.clear();
 		var reported = emitter.changes.copy();
 		reported.sort(Reflect.compare);
 		Assert.equals("pong-,third-", reported.join(","));
@@ -84,12 +95,12 @@ class ListenersChangedTest extends Test {
 		emitter.on(PING, function(_) {});
 		emitter.on(PONG, function(_) {});
 		emitter.changes = [];
-		emitter.removeAllListeners();
+		emitter.clear();
 		var reported = emitter.changes.copy();
 		reported.sort(Reflect.compare);
 		Assert.equals("ping-,pong-", reported.join(","));
 		emitter.changes = [];
-		emitter.removeAllListeners();
+		emitter.clear();
 		Assert.equals("", emitter.log());
 	}
 
@@ -99,7 +110,7 @@ class ListenersChangedTest extends Test {
 		emitter.on(PING, a);
 		emitter.off(PING, a);
 		emitter.once(PONG, function(_) {});
-		emitter.dispatchEvent(new Event(PONG));
+		emitter.dispatch(new Event(PONG));
 		Assert.equals("true,false,true,false", emitter.presentInside.join(","));
 	}
 
@@ -107,10 +118,10 @@ class ListenersChangedTest extends Test {
 		// Past the chain into the map, the same reports.
 		var emitter = new Recording();
 		for (i in 0...12) {
-			emitter.addEventListener("t" + i, function(_:Event) {});
+			emitter.on("t" + i, function(_:Event) {});
 		}
 		for (i in 0...12) {
-			emitter.removeEventListeners("t" + i);
+			emitter.clear("t" + i);
 		}
 		Assert.equals(24, emitter.changes.length);
 		Assert.equals("t11-", emitter.changes[23]);
@@ -119,9 +130,9 @@ class ListenersChangedTest extends Test {
 	function testAHookMayAddListenersWhileEverythingIsRemoved() {
 		var emitter = new Rearming();
 		emitter.on(PING, function(_) {});
-		emitter.removeEventListeners();
-		Assert.isTrue(emitter.hasEventListener(PONG));
-		Assert.isFalse(emitter.hasEventListener(PING));
+		emitter.clear();
+		Assert.isTrue(emitter.has(PONG));
+		Assert.isFalse(emitter.has(PING));
 	}
 
 	function testListenersChangedDuringADispatchAreReportedAtOnce() {
@@ -130,11 +141,11 @@ class ListenersChangedTest extends Test {
 		emitter.on(PING, function(_) {
 			emitter.off(PING, b);
 			emitter.on(PONG, b);
-			emitter.removeEventListeners(PING);
+			emitter.clear(PING);
 		});
 		emitter.on(PING, b);
 		emitter.changes = [];
-		emitter.dispatchEvent(new Event(PING));
+		emitter.dispatch(new Event(PING));
 		Assert.equals("pong+,ping-", emitter.log());
 	}
 }
@@ -147,7 +158,7 @@ private class Rearming extends Emitter {
 
 	override private function listenersChanged(type:String, present:Bool):Void {
 		if (type == "ping" && !present) {
-			addEventListener("pong", function(_:Event) {});
+			on("pong", function(_:Event) {});
 		}
 	}
 }

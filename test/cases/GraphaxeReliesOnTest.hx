@@ -28,10 +28,10 @@ class GraphaxeReliesOnTest extends Test {
 		for (_ in 0...5) {
 			list.reuse(renderer);
 		}
-		renderer.dispatchEvent(new Event(TRIGGERED));
+		renderer.dispatch(new Event(TRIGGERED));
 		Assert.equals(1, triggered);
 		list.dispose(renderer);
-		renderer.dispatchEvent(new Event(TRIGGERED));
+		renderer.dispatch(new Event(TRIGGERED));
 		Assert.equals(1, triggered);
 	}
 
@@ -52,18 +52,18 @@ class GraphaxeReliesOnTest extends Test {
 				return;
 			}
 			log.push("closed");
-			stage.removeEventListener(POINTER_UP, onStageRelease);
+			stage.off(POINTER_UP, onStageRelease);
 		};
-		button.addEventListener(POINTER_UP, function(_) {
+		button.on(POINTER_UP, function(_) {
 			log.push("opened");
 			ignoreNextStageRelease = true;
-			stage.addEventListener(POINTER_UP, onStageRelease);
+			stage.on(POINTER_UP, onStageRelease);
 		});
-		button.dispatchEvent(new Event(POINTER_UP, true));
+		button.dispatch(new Event(POINTER_UP, true));
 		Assert.equals("opened,ignored", log.join(","));
-		stage.dispatchEvent(new Event(POINTER_UP, true));
+		stage.dispatch(new Event(POINTER_UP, true));
 		Assert.equals("opened,ignored,closed", log.join(","));
-		Assert.isFalse(stage.hasEventListener(POINTER_UP));
+		Assert.isFalse(stage.has(POINTER_UP));
 	}
 
 	function testAListenerRemovingAndAddingItselfDuringADispatchIsSafe() {
@@ -72,19 +72,19 @@ class GraphaxeReliesOnTest extends Test {
 		var rearm:Event->Void = null;
 		rearm = function(_:Event) {
 			log.push("rearm");
-			shape.removeEventListener(ENTER_FRAME, rearm);
-			shape.addEventListener(ENTER_FRAME, rearm);
+			shape.off(ENTER_FRAME, rearm);
+			shape.on(ENTER_FRAME, rearm);
 		};
 		var once:Event->Void = null;
 		once = function(_:Event) {
 			log.push("once");
-			shape.removeEventListener(ENTER_FRAME, once);
+			shape.off(ENTER_FRAME, once);
 		};
-		shape.addEventListener(ENTER_FRAME, rearm);
-		shape.addEventListener(ENTER_FRAME, once);
-		shape.addEventListener(ENTER_FRAME, function(_) log.push("last"));
-		shape.dispatchEvent(new Event(ENTER_FRAME));
-		shape.dispatchEvent(new Event(ENTER_FRAME));
+		shape.on(ENTER_FRAME, rearm);
+		shape.on(ENTER_FRAME, once);
+		shape.on(ENTER_FRAME, function(_) log.push("last"));
+		shape.dispatch(new Event(ENTER_FRAME));
+		shape.dispatch(new Event(ENTER_FRAME));
 		Assert.equals("rearm,once,last,last,rearm", log.join(","));
 	}
 
@@ -95,29 +95,30 @@ class GraphaxeReliesOnTest extends Test {
 		var button = new Shape("button", stage);
 		var answers = [];
 		var press = function(_:Event) {};
-		button.addEventListener(POINTER_UP, function(_) {
-			button.removeEventListener(POINTER_UP, press);
+		button.on(POINTER_UP, function(_) {
+			button.off(POINTER_UP, press);
 			answers.push(button.has(POINTER_UP, press));
-			answers.push(stage.hasEventListener(POINTER_UP));
-			stage.addEventListener(POINTER_UP, press);
-			answers.push(stage.hasEventListener(POINTER_UP));
+			answers.push(stage.has(POINTER_UP));
+			stage.on(POINTER_UP, press);
+			answers.push(stage.has(POINTER_UP));
 		});
-		button.addEventListener(POINTER_UP, press);
-		button.dispatchEvent(new Event(POINTER_UP));
+		button.on(POINTER_UP, press);
+		button.dispatch(new Event(POINTER_UP));
 		Assert.equals("false,false,true", answers.join(","));
 	}
 
 	function testTheStageRegistryFollowsEveryPathThatAddsOrRemoves() {
 		// display/DisplayObject.hx registers an object for ENTER_FRAME and
 		// RENDER on its first listener and drops it on its last: from the
-		// hook, so prepend, once and removing everything keep it right too.
+		// hook, so a subscription cancelled, once and removing everything keep
+		// it right too.
 		var stage = new StageLike();
 		var shape = new Shape("shape", null, stage);
 		var listener = function(_:Event) {};
 
-		shape.prepend(ENTER_FRAME, listener);
+		var subscription = shape.on(ENTER_FRAME, listener, 5);
 		Assert.equals("shape", stage.frames());
-		shape.removeEventListener(ENTER_FRAME, listener);
+		subscription.cancel();
 		Assert.equals("", stage.frames());
 
 		shape.once(ENTER_FRAME, function(_) {});
@@ -125,21 +126,21 @@ class GraphaxeReliesOnTest extends Test {
 		stage.frame();
 		Assert.equals("", stage.frames());
 
-		shape.addEventListener(ENTER_FRAME, listener);
-		shape.addEventListener(RENDER, listener);
+		shape.on(ENTER_FRAME, listener);
+		shape.on(RENDER, listener);
 		Assert.equals("shape", stage.frames());
 		Assert.equals("shape", stage.renders());
-		shape.removeEventListeners();
+		shape.clear();
 		Assert.equals("", stage.frames());
 		Assert.equals("", stage.renders());
 
-		shape.addEventListener(ENTER_FRAME, listener);
-		shape.addEventListener(ENTER_FRAME, function(_) {});
-		shape.removeAllListeners();
+		shape.on(ENTER_FRAME, listener);
+		shape.on(ENTER_FRAME, function(_) {});
+		shape.clear();
 		Assert.equals("", stage.frames());
 
-		shape.addEventListener(RENDER, listener);
-		shape.removeEventListeners(RENDER);
+		shape.on(RENDER, listener);
+		shape.clear(RENDER);
 		Assert.equals("", stage.renders());
 	}
 
@@ -148,12 +149,12 @@ class GraphaxeReliesOnTest extends Test {
 		// stopping the rest.
 		var field = new Shape("field");
 		var log = [];
-		field.addEventListener(POINTER_UP, function(e:Event) {
+		field.on(POINTER_UP, function(e:Event) {
 			log.push("overlay");
 			e.stopImmediatePropagation();
 		});
-		field.addEventListener(POINTER_UP, function(_) log.push("field"));
-		field.dispatchEvent(new Event(POINTER_UP));
+		field.on(POINTER_UP, function(_) log.push("field"));
+		field.dispatch(new Event(POINTER_UP));
 		Assert.equals("overlay", log.join(","));
 	}
 
@@ -166,7 +167,7 @@ class GraphaxeReliesOnTest extends Test {
 		var log = [];
 		for (node in [stage, panel, button]) {
 			var name = node.name;
-			node.addEventListener(POINTER_UP, function(e:Event) log.push(name + ">" + Std.string(e.currentTarget)));
+			node.on(POINTER_UP, function(e:Event) log.push(name + ">" + Std.string(e.currentTarget)));
 		}
 		var chain = [button, panel, panel, stage];
 		var event = new Event(POINTER_UP, true);
@@ -190,8 +191,8 @@ class GraphaxeReliesOnTest extends Test {
 		// runtime/Window.hx is made by Type.createEmptyInstance.
 		var window:BareNode = Type.createEmptyInstance(BareNode);
 		var heard = 0;
-		window.addEventListener(Event.CLOSE, function(_) heard++);
-		window.dispatchEvent(new Event(Event.CLOSE));
+		window.on(Event.CLOSE, function(_) heard++);
+		window.dispatch(new Event(Event.CLOSE));
 		Assert.equals(1, heard);
 	}
 
@@ -202,16 +203,16 @@ class GraphaxeReliesOnTest extends Test {
 		var a = new Shape("a");
 		var b = new Shape("b");
 		var targets = [];
-		a.addEventListener(ENTER_FRAME, function(e:Event) {
+		a.on(ENTER_FRAME, function(e:Event) {
 			targets.push(Std.string(e.target));
 			e.stopImmediatePropagation();
 		});
-		b.addEventListener(ENTER_FRAME, function(e:Event) targets.push(Std.string(e.target)));
-		b.addEventListener(ENTER_FRAME, function(e:Event) targets.push("b2"));
+		b.on(ENTER_FRAME, function(e:Event) targets.push(Std.string(e.target)));
+		b.on(ENTER_FRAME, function(e:Event) targets.push("b2"));
 		var frame = new Event(ENTER_FRAME);
 		for (shape in [a, b]) {
 			frame.reuse();
-			shape.dispatchEvent(frame);
+			shape.dispatch(frame);
 		}
 		Assert.equals("a,b,b2", targets.join(","));
 	}
@@ -219,9 +220,9 @@ class GraphaxeReliesOnTest extends Test {
 	function testDispatchSaysWhetherAnyNodeListened() {
 		var stage = new Shape("stage");
 		var button = new Shape("button", stage);
-		Assert.isFalse(button.dispatchEvent(new Event(TRIGGERED, true)));
-		stage.addEventListener(TRIGGERED, function(_) {});
-		Assert.isTrue(button.dispatchEvent(new Event(TRIGGERED, true)));
+		Assert.isFalse(button.dispatch(new Event(TRIGGERED, true)));
+		stage.on(TRIGGERED, function(_) {});
+		Assert.isTrue(button.dispatch(new Event(TRIGGERED, true)));
 	}
 }
 
@@ -268,7 +269,7 @@ private class StageLike {
 		var event = new Event("enterFrame");
 		for (shape in enterFrame.copy()) {
 			event.reuse();
-			shape.dispatchEvent(event);
+			shape.dispatch(event);
 		}
 	}
 
@@ -290,10 +291,10 @@ private class ListLike {
 	}
 
 	public function reuse(renderer:Emitter):Void {
-		renderer.addEventListener("triggered", onTriggered);
+		renderer.on("triggered", onTriggered);
 	}
 
 	public function dispose(renderer:Emitter):Void {
-		renderer.removeEventListener("triggered", onTriggered);
+		renderer.off("triggered", onTriggered);
 	}
 }

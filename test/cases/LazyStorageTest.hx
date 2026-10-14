@@ -20,15 +20,15 @@ class LazyStorageTest extends Test {
 
 	function testAskingDispatchingAndRemovingHoldNothingEither() {
 		var emitter = new Emitter();
-		Assert.isFalse(emitter.hasEventListener(PING));
-		Assert.isFalse(emitter.hasSignalListener(VALUE));
-		Assert.isFalse(emitter.dispatchEvent(new Event(PING, true)));
+		Assert.isFalse(emitter.has(PING));
+		Assert.isFalse(emitter.has(VALUE));
+		Assert.isFalse(emitter.dispatch(new Event(PING, true)));
 		Assert.isFalse(emitter.dispatchLocal(new Event(PING)));
 		Assert.isFalse(emitter.dispatchContained(new Event(PING)));
 		Assert.isFalse(emitter.emit(VALUE, 1));
-		emitter.removeEventListener(PING, function(_) {});
+		emitter.off(PING, function(_) {});
 		emitter.off(VALUE, function(_) {});
-		emitter.removeAllListeners();
+		emitter.clear();
 		Assert.isFalse(emitter.allowDuplicates);
 		Assert.isTrue(Inside.idle(emitter));
 	}
@@ -46,23 +46,23 @@ class LazyStorageTest extends Test {
 		var emitter = new Emitter();
 		emitter.on(VALUE, function(_) {});
 		emitter.on(PING, function(_) {});
-		emitter.removeAllListeners();
+		emitter.clear();
 		Assert.isTrue(Inside.idle(emitter));
 	}
 
 	function testADelegateOrAPolicyKeepsTheEventLane() {
 		var holder = new Holder();
-		holder.emitter.removeAllListeners();
+		holder.emitter.clear();
 		Assert.isTrue(Inside.hasEventLane(holder.emitter));
 		var seen = null;
-		holder.addEventListener(PING, function(e:Event) seen = e.target);
-		holder.dispatchEvent(new Event(PING));
+		holder.on(PING, function(e:Event) seen = e.target);
+		holder.dispatch(new Event(PING));
 		Assert.equals((holder : emitter.IEmitter), seen);
 
 		var keeping = new Emitter();
 		keeping.allowDuplicates = true;
 		keeping.on(PING, function(_) {});
-		keeping.removeAllListeners();
+		keeping.clear();
 		Assert.isTrue(keeping.allowDuplicates);
 	}
 
@@ -78,14 +78,14 @@ class LazyStorageTest extends Test {
 		node.parent = parent;
 		var heard = false;
 		parent.on(PING, function(_) heard = true);
-		node.dispatchEvent(new Event(PING, true));
+		node.dispatch(new Event(PING, true));
 		Assert.isTrue(heard);
 	}
 
 	function exercise(emitter:Emitter) {
-		Assert.isFalse(emitter.hasEventListener(PING));
+		Assert.isFalse(emitter.has(PING));
 		Assert.isFalse(emitter.allowDuplicates);
-		Assert.isFalse(emitter.dispatchEvent(new Event(PING)));
+		Assert.isFalse(emitter.dispatch(new Event(PING)));
 		Assert.isFalse(emitter.emit(VALUE, 1));
 		var log = [];
 		var listener = function(_:Event) log.push("event");
@@ -93,12 +93,12 @@ class LazyStorageTest extends Test {
 		emitter.on(PING, listener);
 		emitter.once(PING, function(_) log.push("once"));
 		emitter.on(VALUE, function(v) log.push("signal" + v));
-		Assert.isTrue(emitter.dispatchEvent(new Event(PING)));
-		Assert.isTrue(emitter.dispatchEvent(new Event(PING)));
+		Assert.isTrue(emitter.dispatch(new Event(PING)));
+		Assert.isTrue(emitter.dispatch(new Event(PING)));
 		Assert.isTrue(emitter.emit(VALUE, 3));
 		Assert.equals("event,once,event,signal3", log.join(","));
-		emitter.removeAllListeners();
-		Assert.isFalse(emitter.hasEventListener(PING));
+		emitter.clear();
+		Assert.isFalse(emitter.has(PING));
 		emitter.allowDuplicates = true;
 		Assert.isTrue(emitter.allowDuplicates);
 	}

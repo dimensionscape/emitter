@@ -5,37 +5,65 @@ import emitter.Signal0;
 import emitter.Signal2;
 
 /**
-	A tour of Emitter: events, bubbling, signals, and the hooks a
-	framework builds on. Run it with `haxe build.hxml` in this folder.
+	A tour of Emitter: signals, events, removing listeners, bubbling, and a
+	framework layer. Run it with `haxe build.hxml` in this folder.
 **/
 class Example {
 	static function main() {
-		events();
-		bubbling();
 		signals();
-		frameworkHooks();
+		events();
+		removing();
+		bubbling();
+		frameworkLayer();
+	}
+
+	static function signals() {
+		trace("Signals");
+		var player = new Player();
+		player.on(Player.MOVED, (x, y) -> trace("moved by " + (x + y)));
+		player.emit(Player.MOVED, 1.5, 2.5);
+
+		// A higher priority runs earlier; once listens for the next emit only.
+		player.on(Player.TICK, () -> trace("tick"));
+		player.on(Player.TICK, () -> trace("first, priority 10"), 10);
+		player.once(Player.TICK, () -> trace("only the first time"));
+		player.emit(Player.TICK);
+		player.emit(Player.TICK);
+		trace("heard by anyone: " + player.emit(Player.NOTHING));
 	}
 
 	static function events() {
 		trace("Events");
 		var game = new Emitter();
-		game.addEventListener(ScoreEvent.SCORED, function(event:ScoreEvent) trace("scored " + event.points));
+		game.on(ScoreEvent.SCORED, event -> trace("scored " + event.points));
+		game.dispatch(new ScoreEvent(10));
 
-		// Higher priorities run first; once listens for the next event only.
-		game.on(ScoreEvent.SCORED, function(event:ScoreEvent) trace("first, priority 10"), 10)
-			.once(ScoreEvent.SCORED, function(event:ScoreEvent) trace("only the first time"));
-		game.dispatchEvent(new ScoreEvent(10));
-		game.dispatchEvent(new ScoreEvent(20));
+		// Adding an event listener already there does nothing.
+		var onScored = (event:ScoreEvent) -> trace("added twice, heard once");
+		game.on(ScoreEvent.SCORED, onScored);
+		game.on(ScoreEvent.SCORED, onScored);
+		game.dispatch(new ScoreEvent(20));
+	}
 
-		// Adding a listener that is already there does nothing.
-		game.removeAllListeners();
-		var onScored = function(event:ScoreEvent) trace("added twice, heard once");
-		game.addEventListener(ScoreEvent.SCORED, onScored);
-		game.addEventListener(ScoreEvent.SCORED, onScored);
-		game.dispatchEvent(new ScoreEvent(30));
-		trace("listening: " + game.has(ScoreEvent.SCORED, onScored));
-		game.removeEventListener(ScoreEvent.SCORED, onScored);
-		trace("anything listening: " + game.hasEventListener(ScoreEvent.SCORED));
+	static function removing() {
+		trace("Removing");
+		var player = new Player();
+
+		// A subscription removes its listener, a lambda included.
+		var moved = player.on(Player.MOVED, (x, y) -> trace("never heard"));
+		moved.cancel();
+		trace("still listening: " + moved.active);
+
+		// off removes a method by reading it again.
+		var hud = new Hud(player);
+		player.emit(Player.MOVED, 1, 2);
+		hud.close(player);
+		trace("anything listening: " + player.has(Player.MOVED));
+
+		// clear removes every listener of a signal, or with nothing given, all.
+		player.on(Player.TICK, () -> {});
+		player.clear();
+		trace("anything listening after clear: " + player.has(Player.TICK));
 	}
 
 	static function bubbling() {
@@ -43,41 +71,50 @@ class Example {
 		var root = new Node();
 		var leaf = new Node(root);
 		var rootHeard = false;
-		root.addEventListener(Event.CHANGE, function(event:Event) {
+		root.on(Event.CHANGE, event -> {
 			rootHeard = true;
 			trace("root heard it, dispatched on the leaf: " + (event.target == leaf));
 		});
-		leaf.dispatchEvent(new Event(Event.CHANGE, true));
+		leaf.dispatch(new Event(Event.CHANGE, true));
 
 		// A listener on the way can stop it.
 		rootHeard = false;
-		leaf.addEventListener(Event.CHANGE, function(event:Event) event.stopPropagation());
-		leaf.dispatchEvent(new Event(Event.CHANGE, true));
+		leaf.on(Event.CHANGE, event -> event.stopPropagation());
+		leaf.dispatch(new Event(Event.CHANGE, true));
 		trace("root heard it after the leaf stopped it: " + rootHeard);
 	}
 
-	static function signals() {
-		trace("Signals");
-		var player = new Player();
-		player.on(Player.MOVED, function(x:Float, y:Float) trace("moved by " + (x + y)));
-		player.emit(Player.MOVED, 1.5, 2.5);
+	static function frameworkLayer() {
+		trace("A framework layer");
+		var sprite = new Sprite();
+		var onFrame = (event:Event) -> {};
+		sprite.addEventListener(Sprite.ENTER_FRAME, onFrame);
+		trace("listening for frames: " + sprite.hasEventListener("enterFrame"));
+		sprite.removeEventListener(Sprite.ENTER_FRAME, onFrame);
+	}
+}
 
-		// A signal listener added twice is called twice; each off removes one.
-		var count = 0;
-		var tick = function() count++;
-		player.on(Player.TICK, tick).on(Player.TICK, tick);
-		player.emit(Player.TICK);
-		trace("ticks heard: " + count);
-		player.off(Player.TICK, tick).off(Player.TICK, tick);
-		trace("anything listening: " + player.emit(Player.TICK));
+class Player extends Emitter {
+	public static inline var MOVED:Signal2<Float, Float> = "moved";
+	public static inline var TICK:Signal0 = "tick";
+	public static inline var NOTHING:Signal0 = "nothing";
+
+	public function new() {
+		super();
+	}
+}
+
+class Hud {
+	public function new(player:Player) {
+		player.on(Player.MOVED, onMoved);
 	}
 
-	static function frameworkHooks() {
-		trace("Hooks");
-		var sprite = new Sprite();
-		var onFrame = function(event:Event) {};
-		sprite.addEventListener(Sprite.ENTER_FRAME, onFrame);
-		sprite.removeEventListener(Sprite.ENTER_FRAME, onFrame);
+	public function close(player:Player) {
+		player.off(Player.MOVED, onMoved);
+	}
+
+	function onMoved(x:Float, y:Float):Void {
+		trace("hud saw a move to " + x + ", " + y);
 	}
 }
 
@@ -105,22 +142,35 @@ class Node extends Emitter {
 	}
 }
 
-class Player extends Emitter {
-	public static inline var MOVED:Signal2<Float, Float> = "moved";
-	public static inline var TICK:Signal0 = "tick";
-
+/**
+	A framework's dispatcher: ActionScript's names as one-line inline
+	methods, and a registry kept from `listenersChanged`.
+**/
+class EventDispatcher extends Emitter {
 	public function new() {
 		super();
+	}
+
+	public inline function addEventListener<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Void {
+		on(type, listener, priority);
+	}
+
+	public inline function removeEventListener<T:Event>(type:EventType<T>, listener:T->Void):Void {
+		off(type, listener);
+	}
+
+	public inline function hasEventListener(type:String):Bool {
+		return has(type);
+	}
+
+	public inline function dispatchEvent(event:Event):Bool {
+		return dispatch(event);
 	}
 }
 
 /** A display object that registers for frames when something listens for them. **/
-class Sprite extends Emitter {
+class Sprite extends EventDispatcher {
 	public static inline var ENTER_FRAME:EventType<Event> = "enterFrame";
-
-	public function new() {
-		super();
-	}
 
 	override private function listenersChanged(type:String, present:Bool):Void {
 		if (type == ENTER_FRAME) {

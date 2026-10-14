@@ -24,7 +24,16 @@ class EmitterCases {
 	static function listening(type:EventType<Event>, count:Int):Emitter {
 		var emitter = new Emitter();
 		for (_ in 0...count) {
-			emitter.addEventListener(type, function(_:Event) Bench.sink++);
+			emitter.on(type, function(_:Event) Bench.sink++);
+		}
+		return emitter;
+	}
+
+	/** Listening for four types alike in length and in their first and last characters, none of them `PING`. **/
+	static function many():Emitter {
+		var emitter = new Emitter();
+		for (type in ["pang", "peng", "pung", "pyng"]) {
+			emitter.on(type, function(_:Event) Bench.sink++);
 		}
 		return emitter;
 	}
@@ -43,7 +52,7 @@ class EmitterCases {
 		var mid = new Node(root);
 		var leaf = new Node(mid);
 		for (node in [root, mid, leaf]) {
-			node.addEventListener(PING, function(_:Event) Bench.sink++);
+			node.on(PING, function(_:Event) Bench.sink++);
 		}
 		return leaf;
 	}
@@ -55,7 +64,7 @@ class EmitterCases {
 			return function() {
 				for (i in 0...INNER) {
 					event.reuse();
-					both[i & 1].dispatchEvent(event);
+					both[i & 1].dispatch(event);
 				}
 			}
 		});
@@ -64,7 +73,7 @@ class EmitterCases {
 			var event = new Event(PING);
 			return function() {
 				for (i in 0...INNER) {
-					both[i & 1].dispatchEvent(event);
+					both[i & 1].dispatch(event);
 				}
 			}
 		});
@@ -74,7 +83,7 @@ class EmitterCases {
 			return function() {
 				for (i in 0...INNER) {
 					event.reuse();
-					both[i & 1].dispatchEvent(event);
+					both[i & 1].dispatch(event);
 				}
 			}
 		});
@@ -84,15 +93,25 @@ class EmitterCases {
 			return function() {
 				for (i in 0...INNER) {
 					event.reuse();
-					both[i & 1].dispatchEvent(event);
+					both[i & 1].dispatch(event);
 				}
 			}
 		});
-		Bench.time("hasEventListener", function() {
+		Bench.time("dispatch, no listener for the type, 4 types listened", function() {
+			var both = [many(), many()];
+			var event = new Event(PING);
+			return function() {
+				for (i in 0...INNER) {
+					event.reuse();
+					both[i & 1].dispatch(event);
+				}
+			}
+		});
+		Bench.time("has, the type has one", function() {
 			var both = [listening(PING, 1), listening(PING, 1)];
 			return function() {
 				for (i in 0...INNER) {
-					if (both[i & 1].hasEventListener(PING)) {
+					if (both[i & 1].has(PING)) {
 						Bench.sink++;
 					}
 				}
@@ -103,20 +122,29 @@ class EmitterCases {
 			var listener = function(_:Event) Bench.sink++;
 			return function() {
 				for (_ in 0...INNER) {
-					shared.addEventListener(PING, listener);
-					shared.removeEventListener(PING, listener);
+					shared.on(PING, listener);
+					shared.off(PING, listener);
 				}
 			}
 		});
 		Bench.time("add + remove, the type has one, duplicates kept", function() {
 			var keeping = new Emitter();
 			keeping.allowDuplicates = true;
-			keeping.addEventListener(PING, function(_:Event) Bench.sink++);
+			keeping.on(PING, function(_:Event) Bench.sink++);
 			var listener = function(_:Event) Bench.sink++;
 			return function() {
 				for (_ in 0...INNER) {
-					keeping.addEventListener(PING, listener);
-					keeping.removeEventListener(PING, listener);
+					keeping.on(PING, listener);
+					keeping.off(PING, listener);
+				}
+			}
+		});
+		Bench.time("subscribe + cancel, the type has one", function() {
+			var both = [listening(PING, 1), listening(PING, 1)];
+			var listener = function(_:Event) Bench.sink++;
+			return function() {
+				for (i in 0...INNER) {
+					both[i & 1].on(PING, listener).cancel();
 				}
 			}
 		});
@@ -125,8 +153,8 @@ class EmitterCases {
 			var listener = function(_:Event) Bench.sink++;
 			return function() {
 				for (_ in 0...INNER) {
-					other.addEventListener(PING, listener);
-					other.removeEventListener(PING, listener);
+					other.on(PING, listener);
+					other.off(PING, listener);
 				}
 			}
 		});
@@ -195,6 +223,15 @@ class EmitterCases {
 				}
 			}
 		});
+		Bench.time("subscribe + cancel, the signal has one", function() {
+			var both = [signals(), signals()];
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				for (i in 0...INNER) {
+					both[i & 1].on(S1, listener).cancel();
+				}
+			}
+		});
 		Bench.time("once, then emit", function() {
 			var both = [signals(), signals()];
 			var listener = function(a:Int) Bench.sink += a;
@@ -212,7 +249,7 @@ class EmitterCases {
 			return function() {
 				for (i in 0...INNER) {
 					event.reuse();
-					both[i & 1].dispatchEvent(event);
+					both[i & 1].dispatch(event);
 				}
 			}
 		});
@@ -233,6 +270,13 @@ class EmitterCases {
 				emitter.off(S1, listener);
 			}
 		});
+		Bench.bytes("subscribe + cancel, the signal has one", function() {
+			var emitter = signals();
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				emitter.on(S1, listener).cancel();
+			}
+		});
 		Bench.bytes("once, then emit", function() {
 			var emitter = signals();
 			var listener = function(a:Int) Bench.sink += a;
@@ -248,7 +292,7 @@ class EmitterCases {
 			var listener = function(_:Event) Bench.sink++;
 			return function() {
 				var made = new Emitter();
-				made.addEventListener(PING, listener);
+				made.on(PING, listener);
 				Bench.kept = made;
 			}
 		});
@@ -257,7 +301,7 @@ class EmitterCases {
 			var event = new Event(PING);
 			return function() {
 				event.reuse();
-				one.dispatchEvent(event);
+				one.dispatch(event);
 			}
 		});
 		Bench.bytes("dispatch, 4 listeners", function() {
@@ -265,7 +309,7 @@ class EmitterCases {
 			var event = new Event(PING);
 			return function() {
 				event.reuse();
-				four.dispatchEvent(event);
+				four.dispatch(event);
 			}
 		});
 		Bench.bytes("emit, 1 argument", function() {
@@ -286,15 +330,15 @@ class EmitterCases {
 			var event = new Event(PING, true);
 			return function() {
 				event.reuse();
-				leaf.dispatchEvent(event);
+				leaf.dispatch(event);
 			}
 		});
 		Bench.bytes("add + remove, the type has one", function() {
 			var shared = listening(PING, 1);
 			var listener = function(_:Event) Bench.sink++;
 			return function() {
-				shared.addEventListener(PING, listener);
-				shared.removeEventListener(PING, listener);
+				shared.on(PING, listener);
+				shared.off(PING, listener);
 			}
 		});
 	}

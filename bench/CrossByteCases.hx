@@ -8,7 +8,8 @@ import crossbyte.events.EventType;
 /**
 	CrossByte's EventDispatcher, built from CrossByte's own source: the
 	cases it has (no signals, no bubbling). It keeps duplicates, so both
-	add + remove cases are the one operation for it. A reused event is made
+	add + remove cases are the one operation for it; it has no
+	subscriptions, so subscribe + cancel is its add + remove. A reused event is made
 	ready again by its own `__retarget`, as CrossByte's arrivals are.
 **/
 @:access(crossbyte.events.Event)
@@ -19,6 +20,15 @@ class CrossByteCases {
 	static function listening(type:EventType<Event>, count:Int):EventDispatcher {
 		var dispatcher = new EventDispatcher();
 		for (_ in 0...count) {
+			dispatcher.addEventListener(type, function(_:Event) Bench.sink++);
+		}
+		return dispatcher;
+	}
+
+	/** Listening for four types alike in length and in their first and last characters, none of them `PING`. **/
+	static function many():EventDispatcher {
+		var dispatcher = new EventDispatcher();
+		for (type in ["pang", "peng", "pung", "pyng"]) {
 			dispatcher.addEventListener(type, function(_:Event) Bench.sink++);
 		}
 		return dispatcher;
@@ -64,7 +74,17 @@ class CrossByteCases {
 				}
 			}
 		});
-		Bench.time("hasEventListener", function() {
+		Bench.time("dispatch, no listener for the type, 4 types listened", function() {
+			var both = [many(), many()];
+			var event = new Event(PING);
+			return function() {
+				for (i in 0...INNER) {
+					event.__retarget();
+					both[i & 1].dispatchEvent(event);
+				}
+			}
+		});
+		Bench.time("has, the type has one", function() {
 			var both = [listening(PING, 1), listening(PING, 1)];
 			return function() {
 				for (i in 0...INNER) {
@@ -74,7 +94,7 @@ class CrossByteCases {
 				}
 			}
 		});
-		for (name in ["add + remove, the type has one", "add + remove, the type has one, duplicates kept"]) {
+		for (name in ["add + remove, the type has one", "add + remove, the type has one, duplicates kept", "subscribe + cancel, the type has one"]) {
 			Bench.time(name, function() {
 				var shared = listening(PING, 1);
 				var listener = function(_:Event) Bench.sink++;

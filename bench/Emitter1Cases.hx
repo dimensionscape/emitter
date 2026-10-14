@@ -81,7 +81,7 @@ class Emitter1Cases {
 				}
 			}
 		});
-		Bench.time("on + off, the signal has one", function() {
+		for (name in ["on + off, the signal has one", "subscribe + cancel, the signal has one"]) Bench.time(name, function() {
 			var both = [signals(), signals()];
 			var listener = function(a:Int) Bench.sink += a;
 			return function() {

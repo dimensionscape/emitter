@@ -19,6 +19,7 @@ class TestMain {
 			new RemovalTest(),
 			new ListenersChangedTest(),
 			new LazyStorageTest(),
+			new SubscriptionTest(),
 			new GraphaxeReliesOnTest()
 		]);
 	}
