@@ -249,6 +249,28 @@ final class Lane extends #if (cpp || js || jvm) Slot #else StringMap<Array<Liste
 		return NOT_FOUND;
 	}
 
+	/**
+		Removes `list[at]` where it is, from the list a walk is going over:
+		for the only walk of this lane, over its own list, which does not
+		move on past `at`. The last listener leaves the array as it is: the
+		name goes, and the walk ends.
+	**/
+	public function removeWalked(type:String, list:Array<Listener>, at:Int):Int {
+		list[at].state |= Listener.GONE;
+		var length:Int = list.length;
+		if (length == 1) {
+			forget(type);
+			return TRANSITION;
+		}
+		var i:Int = at + 1;
+		while (i < length) {
+			list[i - 1] = list[i];
+			i++;
+		}
+		list.pop();
+		return CHANGED;
+	}
+
 	/** Whether `fn` listens for `type`. **/
 	public function has(type:String, fn:Function):Bool {
 		var list:Null<Array<Listener>> = listOf(type);

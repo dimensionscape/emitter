@@ -614,18 +614,29 @@ class Emitter implements IEmitter {
 	@:noCompletion private function __walk(lane:Lane, list:Array<Listener>, event:Event):Void {
 		var type:String = event.type;
 		var length:Int = list.length;
+		var i:Int = 0;
 		lane.walking++;
 		try {
-			for (i in 0...length) {
+			while (i < length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.KEPT && !__mayRun(lane, type, entry, true)) {
-					continue;
+				if (entry.state != Listener.KEPT) {
+					var verdict:Int = __mayRun(lane, type, entry, true, list, i);
+					if (verdict == SKIP) {
+						i++;
+						continue;
+					}
+					if (verdict == RUN_HERE) {
+						// It came out where it stood: the next moved into its place.
+						length--;
+						i--;
+					}
 				}
 				var call:Event->Void = cast entry.fn;
 				call(event);
 				if (event.immediatePropagationStopped) {
 					break;
 				}
+				i++;
 			}
 		} catch (error:Thrown) {
 			lane.walking--;
@@ -644,12 +655,22 @@ class Emitter implements IEmitter {
 		event.currentTarget = lane.target != null ? lane.target : this;
 		var type:String = event.type;
 		var length:Int = list.length;
+		var i:Int = 0;
 		lane.walking++;
 		try {
-			for (i in 0...length) {
+			while (i < length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.KEPT && !__mayRun(lane, type, entry, true)) {
-					continue;
+				if (entry.state != Listener.KEPT) {
+					var verdict:Int = __mayRun(lane, type, entry, true, list, i);
+					if (verdict == SKIP) {
+						i++;
+						continue;
+					}
+					if (verdict == RUN_HERE) {
+						// It came out where it stood: the next moved into its place.
+						length--;
+						i--;
+					}
 				}
 				try {
 					var call:Event->Void = cast entry.fn;
@@ -660,6 +681,7 @@ class Emitter implements IEmitter {
 				if (event.immediatePropagationStopped) {
 					break;
 				}
+				i++;
 			}
 		} catch (error:Thrown) {
 			// listenerThrew or listenersChanged threw: the count is put back.
@@ -730,26 +752,45 @@ class Emitter implements IEmitter {
 		return heard;
 	}
 
+	/** What `__mayRun` says of a listener walked: not to call it. **/
+	static inline var SKIP:Int = 0;
+
+	/** To call it. **/
+	static inline var RUN:Int = 1;
+
+	/** To call it, and that it came out of the list walked where it was: the walk does not move on. **/
+	static inline var RUN_HERE:Int = 2;
+
 	/**
-		Whether a listener walked that is not plainly kept runs. One removed
-		or cancelled during the dispatch still does. A `once` is taken out
-		before it is called, and not called if it has been already: a dispatch
-		nested inside another reached it first, and the outer one still holds
-		it in the list it is walking.
+		Whether a listener walked, `list[at]`, that is not plainly kept runs.
+		One removed or cancelled during the dispatch still does. A `once` is
+		taken out before it is called, and not called if it has been already:
+		a dispatch nested inside another reached it first, and the outer one
+		still holds it in the list it is walking. Taken out by the only walk
+		of its lane, over the lane's own list, it comes out of that list where
+		it is (`RUN_HERE`), so no copy is made for the walk.
 	**/
-	@:noCompletion private function __mayRun(lane:Lane, type:String, entry:Listener, events:Bool):Bool {
+	@:noCompletion private function __mayRun(lane:Lane, type:String, entry:Listener, events:Bool, list:Array<Listener>, at:Int):Int {
 		var state:Int = entry.state;
 		if (state & Listener.ONCE == 0) {
-			return true;
+			return RUN;
 		}
 		if (state & Listener.SPENT != 0) {
-			return false;
+			return SKIP;
 		}
 		entry.state = state | Listener.SPENT;
-		if (lane.removeEntry(type, entry) == Lane.TRANSITION && events) {
+		var verdict:Int = RUN;
+		var removed:Int;
+		if (lane.walking == 1 && lane.listOf(type) == list) {
+			removed = lane.removeWalked(type, list, at);
+			verdict = RUN_HERE;
+		} else {
+			removed = lane.removeEntry(type, entry);
+		}
+		if (removed == Lane.TRANSITION && events) {
 			listenersChanged(type, false);
 		}
-		return true;
+		return verdict;
 	}
 
 	// The walks `emit` hands over to past a single listener: generic, so
@@ -757,15 +798,26 @@ class Emitter implements IEmitter {
 
 	@:noCompletion private function __emit0(lane:Lane, signal:String, list:Array<Listener>):Void {
 		var length:Int = list.length;
+		var i:Int = 0;
 		lane.walking++;
 		try {
-			for (i in 0...length) {
+			while (i < length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
-					continue;
+				if (entry.state != Listener.SIGNAL) {
+					var verdict:Int = __mayRun(lane, signal, entry, false, list, i);
+					if (verdict == SKIP) {
+						i++;
+						continue;
+					}
+					if (verdict == RUN_HERE) {
+						// It came out where it stood: the next moved into its place.
+						length--;
+						i--;
+					}
 				}
 				var call:Void->Void = cast entry.fn;
 				call();
+				i++;
 			}
 		} catch (error:Thrown) {
 			lane.walking--;
@@ -776,15 +828,26 @@ class Emitter implements IEmitter {
 
 	@:noCompletion private function __emit1<A>(lane:Lane, signal:String, list:Array<Listener>, a:A):Void {
 		var length:Int = list.length;
+		var i:Int = 0;
 		lane.walking++;
 		try {
-			for (i in 0...length) {
+			while (i < length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
-					continue;
+				if (entry.state != Listener.SIGNAL) {
+					var verdict:Int = __mayRun(lane, signal, entry, false, list, i);
+					if (verdict == SKIP) {
+						i++;
+						continue;
+					}
+					if (verdict == RUN_HERE) {
+						// It came out where it stood: the next moved into its place.
+						length--;
+						i--;
+					}
 				}
 				var call:A->Void = cast entry.fn;
 				call(a);
+				i++;
 			}
 		} catch (error:Thrown) {
 			lane.walking--;
@@ -795,15 +858,26 @@ class Emitter implements IEmitter {
 
 	@:noCompletion private function __emit2<A, B>(lane:Lane, signal:String, list:Array<Listener>, a:A, b:B):Void {
 		var length:Int = list.length;
+		var i:Int = 0;
 		lane.walking++;
 		try {
-			for (i in 0...length) {
+			while (i < length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
-					continue;
+				if (entry.state != Listener.SIGNAL) {
+					var verdict:Int = __mayRun(lane, signal, entry, false, list, i);
+					if (verdict == SKIP) {
+						i++;
+						continue;
+					}
+					if (verdict == RUN_HERE) {
+						// It came out where it stood: the next moved into its place.
+						length--;
+						i--;
+					}
 				}
 				var call:(A, B) -> Void = cast entry.fn;
 				call(a, b);
+				i++;
 			}
 		} catch (error:Thrown) {
 			lane.walking--;
@@ -814,15 +888,26 @@ class Emitter implements IEmitter {
 
 	@:noCompletion private function __emit3<A, B, C>(lane:Lane, signal:String, list:Array<Listener>, a:A, b:B, c:C):Void {
 		var length:Int = list.length;
+		var i:Int = 0;
 		lane.walking++;
 		try {
-			for (i in 0...length) {
+			while (i < length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
-					continue;
+				if (entry.state != Listener.SIGNAL) {
+					var verdict:Int = __mayRun(lane, signal, entry, false, list, i);
+					if (verdict == SKIP) {
+						i++;
+						continue;
+					}
+					if (verdict == RUN_HERE) {
+						// It came out where it stood: the next moved into its place.
+						length--;
+						i--;
+					}
 				}
 				var call:(A, B, C) -> Void = cast entry.fn;
 				call(a, b, c);
+				i++;
 			}
 		} catch (error:Thrown) {
 			lane.walking--;
@@ -833,15 +918,26 @@ class Emitter implements IEmitter {
 
 	@:noCompletion private function __emit4<A, B, C, D>(lane:Lane, signal:String, list:Array<Listener>, a:A, b:B, c:C, d:D):Void {
 		var length:Int = list.length;
+		var i:Int = 0;
 		lane.walking++;
 		try {
-			for (i in 0...length) {
+			while (i < length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
-					continue;
+				if (entry.state != Listener.SIGNAL) {
+					var verdict:Int = __mayRun(lane, signal, entry, false, list, i);
+					if (verdict == SKIP) {
+						i++;
+						continue;
+					}
+					if (verdict == RUN_HERE) {
+						// It came out where it stood: the next moved into its place.
+						length--;
+						i--;
+					}
 				}
 				var call:(A, B, C, D) -> Void = cast entry.fn;
 				call(a, b, c, d);
+				i++;
 			}
 		} catch (error:Thrown) {
 			lane.walking--;
@@ -852,15 +948,26 @@ class Emitter implements IEmitter {
 
 	@:noCompletion private function __emit5<A, B, C, D, E>(lane:Lane, signal:String, list:Array<Listener>, a:A, b:B, c:C, d:D, e:E):Void {
 		var length:Int = list.length;
+		var i:Int = 0;
 		lane.walking++;
 		try {
-			for (i in 0...length) {
+			while (i < length) {
 				var entry:Listener = list[i];
-				if (entry.state != Listener.SIGNAL && !__mayRun(lane, signal, entry, false)) {
-					continue;
+				if (entry.state != Listener.SIGNAL) {
+					var verdict:Int = __mayRun(lane, signal, entry, false, list, i);
+					if (verdict == SKIP) {
+						i++;
+						continue;
+					}
+					if (verdict == RUN_HERE) {
+						// It came out where it stood: the next moved into its place.
+						length--;
+						i--;
+					}
 				}
 				var call:(A, B, C, D, E) -> Void = cast entry.fn;
 				call(a, b, c, d, e);
+				i++;
 			}
 		} catch (error:Thrown) {
 			lane.walking--;
