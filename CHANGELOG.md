@@ -1,27 +1,32 @@
 ## [2.0.0] - Unreleased
 
-A redesign: one `Emitter` carries ActionScript-style events and typed signals on one dispatch core, made to be
-extended by frameworks. The 1.x API is replaced, not kept alongside.
+A redesign: one `Emitter` carries typed signals and events on one dispatch core, with a small API (`on`, `once`,
+`off`, `emit`, `dispatch`, `has`, `clear`) and hooks for frameworks to build on. The 1.x API is replaced, not kept
+alongside.
 
 ### Added
 - **Events:** `Event` (type, target, current target, bubbling, stop and cancel, `reuse`, `clone`), `EventType<T>`
-  typing a listener by its event, `IEmitter`, and `addEventListener`, `removeEventListener`, `hasEventListener`,
-  `removeEventListeners` and `dispatchEvent` on `Emitter`.
+  typing a listener by its event, and `dispatch(event)`.
+- **Subscriptions:** `on` and `once` answer with a `Subscription`; `cancel()` removes that listener, a lambda
+  included, with no function equality needed, and `active` says whether it still listens.
+- **`has(token, ?listener)`** and **`clear(?token)`** for both signals and events.
 - **Bubbling** through `getEventParent()`, asked only for an event that bubbles; `stopPropagation` and
   `stopImmediatePropagation`.
-- **Priorities** on both lanes, highest first; `prepend` puts a listener first among its priority.
-- **Duplicate policy:** an event listener added again is ignored, as in ActionScript; `allowDuplicates` keeps it
-  instead. Signals keep duplicates.
-- **`has(token, listener)`** asks whether one listener is there, for events and signals alike.
+- **Priorities** on both kinds, highest first.
+- **Duplicate policy:** an event listener added again is ignored, as in ActionScript, and `on` answers with its
+  subscription; `allowDuplicates` keeps it instead. Signals keep duplicates.
 - **Hooks for frameworks:** `listenersChanged(type, present)` from every path that adds or removes,
-  `dispatchContained` with `listenerThrew`, `dispatchLocal`, and a delegate target (`new Emitter(owner)`).
+  `dispatchContained` with `listenerThrew`, `dispatchLocal`, a delegate target (`new Emitter(owner)`), and
+  `IEmitter`. A framework adds names its users know (`addEventListener` and the rest) as inline methods of its own.
 - **Tests** on hxcpp, the jvm, Node, eval, HashLink and Neko (`haxe test/all.hxml`), and a benchmark
   (`haxe bench/all.hxml`).
 
 ### Changed
 - **Signals** are `Signal0` to `Signal5`, typed by their arguments only (`Signal1<Int>` for
   `SignalType1<Int->Void, Int>`). `emit` is inlined, allocates nothing, and returns whether anything listened.
-- **`once`** takes no arity, and `off` cancels it before it runs.
+- **`once`** takes no arity; cancelling its subscription, or `off`, removes it before it runs.
+- **`on` and `once`** answer with a subscription, so calls no longer chain.
+- **A signal nothing listens for** is found absent at once, faster than in 1.x.
 - **Changes during a dispatch** follow one rule on every target: each emitter's listeners are taken as they are
   when the dispatch reaches it. A listener may remove itself or add itself again.
 - **Removal** finds a bound method on every target, eval, Neko and the jvm included.
@@ -30,9 +35,9 @@ extended by frameworks. The 1.x API is replaced, not kept alongside.
   `Type.createEmptyInstance`.
 
 ### Removed
-- `BaseEmitter`, `IBaseEmitter`, `SignalType` to `SignalType5`, `SignalHandler`, `Arity`, `emitUntyped`,
-  `dispose`, `callbackCount`, `signalCount`, `totalCallbacks`, `hasSignal`, `removeCallbacks` and `isReady`.
-  `removeAllListeners`, `hasSignalListener` and `removeSignalListeners` cover what they did.
+- `BaseEmitter`, `IBaseEmitter`, `SignalType` to `SignalType5`, `SignalHandler`, `Arity`, `prepend`,
+  `emitUntyped`, `dispose`, `callbackCount`, `signalCount`, `totalCallbacks`, `hasSignal`, `removeCallbacks` and
+  `isReady`. `clear` and `has` cover what they did; a priority puts a listener first.
 
 ## [1.0.0] - 2025-08-04
 
