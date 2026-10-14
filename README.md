@@ -169,6 +169,13 @@ A framework extends `Emitter` and overrides the hooks it needs:
 - `listenersChanged(type, present)`: called when an event type gains its first listener or loses its last, by any
   path (`on`, `once`, `off`, a subscription cancelled, a `once` listener called, `clear`). A display tree keeps its
   per-frame registry with it.
+- `listenerAdded(type, subscription)` and `listenerRemoved(type, subscription)`: called for each event listener as
+  it is added and as it is taken out, by the same paths, as Node's `newListener` and `removeListener` events are.
+  A socket that has already closed tells a `close` listener added afterwards what it missed.
+- `listenersOf(type)`: the subscriptions listening for an event type, in the order they run, as a copy. With
+  `subscription.listener`, the function each calls, a framework calls them some other way: a server that hands
+  its `connect` listeners to other threads keeps a copy of them, read again when one comes or goes, and leaves
+  out its own by its subscription.
 - `dispatchContained(event)` dispatches as `dispatch` does, except that a listener that throws does not stop the
   others: what it threw goes to `listenerThrew(error, event)`, which a framework overrides to report it.
 - `dispatchLocal(event)` runs one emitter's listeners and nothing else, for a propagation the framework builds itself.

@@ -277,56 +277,61 @@ final class Lane extends #if (cpp || js || jvm) Slot #else StringMap<Array<Liste
 		return list != null && indexOf(list, fn) >= 0;
 	}
 
-	/** Forgets `type` and its listeners; whether it had any. **/
-	public function removeType(type:String):Bool {
+	/**
+		Forgets `type` and its listeners: the list it had, in the order it
+		ran, or null when it had none.
+	**/
+	public function removeType(type:String):Null<Array<Listener>> {
 		var list:Null<Array<Listener>> = listOf(type);
 		if (list == null) {
-			return false;
+			return null;
 		}
 		markGone(list);
 		forget(type);
-		return true;
+		return list;
 	}
 
 	/**
-		Forgets every name; the ones it had, in no particular order, or null
-		when it had none. Dispatches walking a list go on over it.
+		Forgets every name: the lists it had, one for each name, in no
+		particular order (each listener keeps its name), or null when it had
+		none. Dispatches walking a list go on over it.
 	**/
-	public function clearAll():Null<Array<String>> {
-		var types:Null<Array<String>> = null;
+	public function clearAll():Null<Array<Array<Listener>>> {
+		var lists:Null<Array<Array<Listener>>> = null;
 		#if !(cpp || js || jvm)
 		for (type in keys()) {
-			if (types == null) {
-				types = [];
+			if (lists == null) {
+				lists = [];
 			}
-			types.push(type);
-			markGone(get(type));
+			var list:Array<Listener> = get(type);
+			lists.push(list);
+			markGone(list);
 		}
 		clear();
 		#else
 		var slot:Null<Slot> = head();
 		while (slot != null) {
-			if (types == null) {
-				types = [];
+			if (lists == null) {
+				lists = [];
 			}
-			types.push(slot.type);
+			lists.push(slot.list);
 			markGone(slot.list);
 			slot = slot.next;
 		}
 		dropChain();
 		var map = this.map;
 		if (map != null) {
-			for (type in map.keys()) {
-				if (types == null) {
-					types = [];
+			for (list in map) {
+				if (lists == null) {
+					lists = [];
 				}
-				types.push(type);
-				markGone(map.get(type));
+				lists.push(list);
+				markGone(list);
 			}
 		}
 		this.map = null;
 		#end
-		return types;
+		return lists;
 	}
 
 	private static function markGone(list:Array<Listener>):Void {
@@ -348,7 +353,12 @@ final class Lane extends #if (cpp || js || jvm) Slot #else StringMap<Array<Liste
 		#end
 	}
 
-	private inline function removeAt(type:String, list:Array<Listener>, at:Int):Int {
+	/**
+		Removes `list[at]`, `list` being the listeners for `type` now: where
+		it is, or while a dispatch walks the list, from a copy that replaces
+		it. @return `CHANGED`, or `TRANSITION` for the name's last.
+	**/
+	public inline function removeAt(type:String, list:Array<Listener>, at:Int):Int {
 		var result:Int = CHANGED;
 		list[at].state |= Listener.GONE;
 		var length:Int = list.length;

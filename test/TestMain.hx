@@ -20,6 +20,7 @@ class TestMain {
 			new ListenersChangedTest(),
 			new LazyStorageTest(),
 			new SubscriptionTest(),
+			new ListenerHooksTest(),
 			new GraphaxeReliesOnTest()
 		]);
 	}

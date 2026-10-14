@@ -69,11 +69,14 @@ import haxe.exceptions.ArgumentException;
 
 	A framework extends `Emitter` and overrides the hooks it needs:
 	`getEventParent` to bubble along its own tree, `listenersChanged` to
-	learn when a type gains its first listener or loses its last, and
+	learn when a type gains its first listener or loses its last,
+	`listenerAdded` and `listenerRemoved` to learn of each listener, and
 	`listenerThrew` to report a failure `dispatchContained` caught.
 	`dispatchLocal` runs one emitter's listeners for a propagation the
-	framework builds itself. Names a framework's users already know, such
-	as `addEventListener`, are one-line inline methods on its own subclass.
+	framework builds itself, and `listenersOf` says who listens, for one
+	that calls them some other way. Names a framework's users already know,
+	such as `addEventListener`, are one-line inline methods on its own
+	subclass.
 **/
 @:access(emitter.Event)
 class Emitter implements IEmitter {
@@ -419,6 +422,47 @@ class Emitter implements IEmitter {
 	private function listenersChanged(type:String, present:Bool):Void {}
 
 	/**
+		Called after `listener` is added for events of `type`, by `on` or
+		`once`: for every listener added, the first of its type included
+		(after `listenersChanged` says the type has listeners now). A
+		listener added again and ignored is not added, and is not reported.
+		Does nothing here; a framework overrides it to act on each listener
+		as it comes, as Node's `newListener` event lets one: to tell a
+		listener added too late what it missed, say.
+
+		Only the event lane reports, as for `listenersChanged`.
+	**/
+	private function listenerAdded(type:String, listener:Subscription):Void {}
+
+	/**
+		Called after `listener` is taken out of the listeners for events of
+		`type`, by whatever path: `off`, its subscription cancelled, a `once`
+		listener being called, or `clear` (once for each listener it takes
+		out). When it was the type's last, `listenersChanged` follows. Does
+		nothing here; a framework that keeps a record of the listeners, such
+		as a copy it hands to another thread, overrides it with
+		`listenerAdded` to keep the record whole.
+	**/
+	private function listenerRemoved(type:String, listener:Subscription):Void {}
+
+	/**
+		The listeners for events of `type` now, in the order a dispatch
+		calls them: a copy, which the emitter never changes, and empty when
+		nothing listens. Each is the listener's subscription, so a framework
+		tells one from another (its own, say) by identity, on every target,
+		and calls one through `Subscription.listener`.
+
+		For a framework that hands events to the listeners some other way,
+		from a thread of its own for instance, with `listenerAdded` and
+		`listenerRemoved` telling it when to read this again.
+	**/
+	private function listenersOf(type:String):Array<Subscription> {
+		var lane:Null<Lane> = __events;
+		var list:Null<Array<Listener>> = (lane == null || type == null) ? null : lane.listOf(type);
+		return list == null ? [] : cast list.copy();
+	}
+
+	/**
 		What `dispatchContained` does with what a listener threw: traces it
 		here, with its stack. A framework overrides it to report the failure
 		its own way.
@@ -460,19 +504,27 @@ class Emitter implements IEmitter {
 		}
 		var entry:Listener = new Listener(listener, priority, state, this, type);
 		var result:Int = lane.add(type, entry, !lane.keepDuplicates);
+		if (result >= 0) {
+			// There already: its subscription is the answer.
+			return cast lane.listOf(type)[result];
+		}
 		if (result == Lane.TRANSITION) {
 			listenersChanged(type, true);
-		} else if (result >= 0) {
-			// There already: its subscription is the answer.
-			entry = lane.listOf(type)[result];
 		}
+		listenerAdded(type, cast entry);
 		return cast entry;
 	}
 
 	@:noCompletion private function __offEvent<T:Event>(type:EventType<T>, listener:T->Void):Void {
 		var lane:Null<Lane> = __events;
-		if (lane != null && listener != null && lane.removeListener(type, listener) == Lane.TRANSITION) {
-			listenersChanged(type, false);
+		if (lane == null || listener == null) {
+			return;
+		}
+		var list:Null<Array<Listener>> = lane.listOf(type);
+		var at:Int = list == null ? -1 : Lane.indexOf(list, listener);
+		if (at >= 0) {
+			var entry:Listener = list[at];
+			__removed(type, entry, lane.removeAt(type, list, at));
 		}
 	}
 
@@ -536,16 +588,41 @@ class Emitter implements IEmitter {
 	@:noCompletion private function __cancel(entry:Listener):Void {
 		var signal:Bool = entry.state & Listener.SIGNAL != 0;
 		var lane:Null<Lane> = signal ? __signals : __events;
-		if (lane != null && lane.removeEntry(entry.type, entry) == Lane.TRANSITION && !signal) {
-			listenersChanged(entry.type, false);
+		if (lane == null) {
+			return;
+		}
+		var result:Int = lane.removeEntry(entry.type, entry);
+		if (result != Lane.NOT_FOUND && !signal) {
+			__removed(entry.type, entry, result);
+		}
+	}
+
+	/**
+		Reports an event listener taken out: to `listenerRemoved`, and then,
+		when it was its type's last (`result` is `Lane.TRANSITION`), to
+		`listenersChanged`.
+	**/
+	@:noCompletion private function __removed(type:String, entry:Listener, result:Int):Void {
+		listenerRemoved(type, cast entry);
+		if (result == Lane.TRANSITION) {
+			listenersChanged(type, false);
 		}
 	}
 
 	@:noCompletion private function __clearEvents(type:String):Void {
 		var lane:Null<Lane> = __events;
-		if (lane != null && lane.removeType(type)) {
-			listenersChanged(type, false);
+		var list:Null<Array<Listener>> = lane == null ? null : lane.removeType(type);
+		if (list != null) {
+			__clearedType(type, list);
 		}
+	}
+
+	/** Reports the listeners `clear` took out of one type, and then the type. **/
+	@:noCompletion private function __clearedType(type:String, list:Array<Listener>):Void {
+		for (entry in list) {
+			listenerRemoved(type, cast entry);
+		}
+		listenersChanged(type, false);
 	}
 
 	@:noCompletion private function __clearSignals(signal:String):Void {
@@ -570,10 +647,10 @@ class Emitter implements IEmitter {
 		if (lane.target == null && !lane.keepDuplicates) {
 			__events = null;
 		}
-		var types:Null<Array<String>> = lane.clearAll();
-		if (types != null) {
-			for (gone in types) {
-				listenersChanged(gone, false);
+		var lists:Null<Array<Array<Listener>>> = lane.clearAll();
+		if (lists != null) {
+			for (list in lists) {
+				__clearedType(list[0].type, list);
 			}
 		}
 	}
@@ -787,8 +864,10 @@ class Emitter implements IEmitter {
 		} else {
 			removed = lane.removeEntry(type, entry);
 		}
-		if (removed == Lane.TRANSITION && events) {
-			listenersChanged(type, false);
+		// Not found when `off` or `cancel` took it out during this dispatch,
+		// which still runs it: that removal was reported then.
+		if (events && removed != Lane.NOT_FOUND) {
+			__removed(type, entry, removed);
 		}
 		return verdict;
 	}

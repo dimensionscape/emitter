@@ -1,6 +1,7 @@
 package emitter;
 
 import emitter._internal.Listener;
+import haxe.Constraints.Function;
 
 /**
 	A listener as `on` and `once` added it: keep it to remove that listener
@@ -22,6 +23,19 @@ abstract Subscription(Listener) {
 	**/
 	public var active(get, never):Bool;
 
+	/**
+		The function the listener calls, as the emitter keeps it: for a
+		framework that calls a listener itself, having found it with
+		`Emitter.listenersOf` or been told of it by `Emitter.listenerAdded`.
+		Cast it to its type to call it.
+
+		On HashLink a typed function added through `on` is kept wrapped: the
+		wrapper calls it, but is not `==` to the function that was added.
+		Tell listeners apart by their subscriptions, which are the same
+		everywhere.
+	**/
+	public var listener(get, never):Function;
+
 	inline function new(entry:Listener) {
 		this = entry;
 	}
@@ -39,5 +53,9 @@ abstract Subscription(Listener) {
 
 	inline function get_active():Bool {
 		return this.state & (Listener.GONE | Listener.SPENT) == 0;
+	}
+
+	inline function get_listener():Function {
+		return this.fn;
 	}
 }
