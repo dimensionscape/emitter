@@ -23,12 +23,14 @@ import haxe.ds.StringMap;
 	the map itself, for the same reason.
 
 	**Changing a list during a dispatch.** A dispatch walks the array that
-	was current when it reached this emitter, without copying it. While one
-	is walking (`walking` above 0), adding or removing a listener replaces
-	the array instead of changing it, so the walk goes on over the array it
-	started with: a listener removed during a dispatch still runs for it,
-	and one added does not. Otherwise an array is changed where it is, so a
-	list of n listeners costs n, not n squared, to build and to empty.
+	was current when it reached this emitter, without copying it, and stops
+	at the length it had then. While one is walking (`walking` above 0),
+	removing a listener or putting one anywhere but last replaces the array
+	instead of changing it, so the walk goes on over what it started with:
+	a listener removed during a dispatch still runs for it, and one added
+	does not. One added last is appended where it is, beyond where the walk
+	stops. Otherwise an array is changed where it is, so a list of n
+	listeners costs n, not n squared, to build and to empty.
 
 	A list is never empty: the type goes when its last listener does.
 **/
@@ -112,21 +114,25 @@ final class Lane extends #if (cpp || js || jvm) Slot #else StringMap<Array<Liste
 		`type` is not added again, and keeps its place.
 
 		Inlined where an emitter adds, so the usual add (a listener after the
-		last, nothing walking) costs one call fewer; anything else is
-		`insert`'s.
+		last) costs one call fewer; anything else is `insert`'s.
 
 		@return `IGNORED`, `CHANGED`, or `TRANSITION` for the type's first.
+		@throws haxe.exceptions.ArgumentException When `type` is null: a null
+		type is never found, so it always comes here.
 	**/
 	public inline function add(type:String, fn:Function, priority:Int, prepend:Bool, state:Int, dedupe:Bool):Int {
 		var list:Null<Array<Listener>> = listOf(type);
 		var result:Int = TRANSITION;
 		if (list == null) {
+			if (type == null) {
+				refuseNullType();
+			}
 			addType(type, [new Listener(fn, priority, state)]);
 		} else if (dedupe && indexOf(list, fn) >= 0) {
 			result = IGNORED;
 		} else {
 			var entry:Listener = new Listener(fn, priority, state);
-			if (walking == 0 && !prepend && list[list.length - 1].priority >= priority) {
+			if (!prepend && list[list.length - 1].priority >= priority) {
 				list.push(entry);
 			} else {
 				insert(type, list, entry, prepend);
@@ -134,6 +140,10 @@ final class Lane extends #if (cpp || js || jvm) Slot #else StringMap<Array<Liste
 			result = CHANGED;
 		}
 		return result;
+	}
+
+	private static function refuseNullType():Void {
+		throw new haxe.exceptions.ArgumentException("type", "A type must not be null");
 	}
 
 	/**

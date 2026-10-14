@@ -692,8 +692,9 @@ class Emitter implements IEmitter {
 
 	// Inlined into the three ways in, so adding is one call to the lane.
 	@:noCompletion private inline function __addEvent(type:String, listener:Function, priority:Int, prepend:Bool, state:Int):Void {
-		if (type == null || listener == null) {
-			__refuse(type == null ? "type" : "listener");
+		// A null type is refused by the lane, on the path it always takes.
+		if (listener == null) {
+			__refuse("listener");
 		}
 		var lane:Null<Lane> = __events;
 		if (lane == null) {
