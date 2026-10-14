@@ -46,6 +46,9 @@ import haxe.ds.StringMap;
 
 	A list is never empty: the name goes when its last listener does. Every
 	listener taken out of a list is marked `Listener.GONE`.
+
+	**In a jvm build's macros**, which run on eval with `jvm` defined and the
+	java package out of reach, every name hashes alike and is told by `==`.
 **/
 @:noCompletion
 final class Lane extends #if (cpp || js || jvm) Slot #else StringMap<Array<Listener>> #end {
@@ -653,7 +656,11 @@ final class Lane extends #if (cpp || js || jvm) Slot #else StringMap<Array<Liste
 		made when it was compiled, and another string's is kept once made.
 	**/
 	public static inline function hashOf(type:Null<String>):Int {
-		#if jvm
+		#if (jvm && macro)
+		// A jvm build's macros run with `jvm` defined and the java package out
+		// of reach: one hash for every name, which leaves the text to decide.
+		return 0;
+		#elseif jvm
 		return type == null ? 0 : (cast type : java.NativeString).hashCode();
 		#else
 		return untyped __cpp__("((int)({0}.hash()))", type);
@@ -665,7 +672,11 @@ final class Lane extends #if (cpp || js || jvm) Slot #else StringMap<Array<Liste
 
 	/** `equals`, for two names whose hashes agree. **/
 	public static inline function sameText(a:Null<String>, b:Null<String>):Bool {
+		#if macro
+		return a != null && a == b;
+		#else
 		return a != null && (cast a : java.NativeString).equals(b);
+		#end
 	}
 	#end
 }

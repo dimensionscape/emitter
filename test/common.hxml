@@ -3,3 +3,6 @@
 -cp test
 -lib utest
 -main TestMain
+# An emitter used in the build's macros, which run on eval with the target
+# defined: see support/MacroCheck.hx.
+--macro support.MacroCheck.run()
