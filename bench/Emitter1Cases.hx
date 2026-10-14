@@ -2,6 +2,7 @@ package;
 
 import Bench.INNER;
 import emitter.Emitter;
+import emitter.signals.Arity;
 import emitter.signals.SignalType;
 
 /**
@@ -13,6 +14,7 @@ class Emitter1Cases {
 	static inline var S1:SignalType1<Int->Void, Int> = "s1";
 	static inline var S3:SignalType3<(Int, Thing, Int) -> Void, Int, Thing, Int> = "s3";
 	static inline var SF:SignalType1<Float->Void, Float> = "sf";
+	static inline var SN:SignalType1<Int->Void, Int> = "sn";
 
 	static function signals():Emitter {
 		var emitter = new Emitter();
@@ -71,6 +73,37 @@ class Emitter1Cases {
 			}
 		});
 
+		Bench.time("emit, no listener for the signal", function() {
+			var both = [signals(), signals()];
+			return function() {
+				for (i in 0...INNER) {
+					both[i & 1].emit(SN, 1);
+				}
+			}
+		});
+		Bench.time("on + off, the signal has one", function() {
+			var both = [signals(), signals()];
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				for (i in 0...INNER) {
+					var emitter = both[i & 1];
+					emitter.on(S1, listener);
+					emitter.off(S1, listener);
+				}
+			}
+		});
+		Bench.time("once, then emit", function() {
+			var both = [signals(), signals()];
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				for (i in 0...INNER) {
+					var emitter = both[i & 1];
+					emitter.once(S1, listener, Arity.One);
+					emitter.emit(S1, 1);
+				}
+			}
+		});
+
 		Bench.bytes("idle emitter", function() {
 			return function() Bench.kept = new Emitter();
 		});
@@ -86,6 +119,31 @@ class Emitter1Cases {
 		Bench.bytes("emit, 1 Float argument", function() {
 			var emitter = signals();
 			return function() emitter.emit(SF, 0.5);
+		});
+
+		Bench.bytes("emitter with one signal listener", function() {
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				var emitter = new Emitter();
+				emitter.on(S1, listener);
+				Bench.kept = emitter;
+			}
+		});
+		Bench.bytes("on + off, the signal has one", function() {
+			var emitter = signals();
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				emitter.on(S1, listener);
+				emitter.off(S1, listener);
+			}
+		});
+		Bench.bytes("once, then emit", function() {
+			var emitter = signals();
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				emitter.once(S1, listener, Arity.One);
+				emitter.emit(S1, 1);
+			}
 		});
 	}
 }

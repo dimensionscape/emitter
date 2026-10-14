@@ -19,6 +19,7 @@ class EmitterCases {
 	static inline var S1:Signal1<Int> = "s1";
 	static inline var S3:Signal3<Int, Event, Int> = "s3";
 	static inline var SF:Signal1<Float> = "sf";
+	static inline var SN:Signal1<Int> = "sn";
 
 	static function listening(type:EventType<Event>, count:Int):Emitter {
 		var emitter = new Emitter();
@@ -175,6 +176,36 @@ class EmitterCases {
 				}
 			}
 		});
+		Bench.time("emit, no listener for the signal", function() {
+			var both = [signals(), signals()];
+			return function() {
+				for (i in 0...INNER) {
+					both[i & 1].emit(SN, 1);
+				}
+			}
+		});
+		Bench.time("on + off, the signal has one", function() {
+			var both = [signals(), signals()];
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				for (i in 0...INNER) {
+					var emitter = both[i & 1];
+					emitter.on(S1, listener);
+					emitter.off(S1, listener);
+				}
+			}
+		});
+		Bench.time("once, then emit", function() {
+			var both = [signals(), signals()];
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				for (i in 0...INNER) {
+					var emitter = both[i & 1];
+					emitter.once(S1, listener);
+					emitter.emit(S1, 1);
+				}
+			}
+		});
 		Bench.time("bubble, 3 levels, a listener on each", function() {
 			var both = [tree(), tree()];
 			var event = new Event(PING, true);
@@ -186,6 +217,30 @@ class EmitterCases {
 			}
 		});
 
+		Bench.bytes("emitter with one signal listener", function() {
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				var emitter = new Emitter();
+				emitter.on(S1, listener);
+				Bench.kept = emitter;
+			}
+		});
+		Bench.bytes("on + off, the signal has one", function() {
+			var emitter = signals();
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				emitter.on(S1, listener);
+				emitter.off(S1, listener);
+			}
+		});
+		Bench.bytes("once, then emit", function() {
+			var emitter = signals();
+			var listener = function(a:Int) Bench.sink += a;
+			return function() {
+				emitter.once(S1, listener);
+				emitter.emit(S1, 1);
+			}
+		});
 		Bench.bytes("idle emitter", function() {
 			return function() Bench.kept = new Emitter();
 		});
