@@ -265,12 +265,7 @@ final class Lane extends #if (cpp || js || jvm) Slot #else StringMap<Array<Liste
 			forget(type);
 			return TRANSITION;
 		}
-		var i:Int = at + 1;
-		while (i < length) {
-			list[i - 1] = list[i];
-			i++;
-		}
-		list.pop();
+		closeUp(list, at, length);
 		return CHANGED;
 	}
 
@@ -373,17 +368,38 @@ final class Lane extends #if (cpp || js || jvm) Slot #else StringMap<Array<Liste
 			next.splice(at, 1);
 			replace(type, next);
 		} else {
-			// Moved down by hand: `splice` makes an array of what it removes,
-			// which would be garbage on every removal on the jvm and JavaScript.
-			var i:Int = at + 1;
-			while (i < length) {
-				list[i - 1] = list[i];
-				i++;
-			}
-			list.pop();
+			closeUp(list, at, length);
 		}
 		return result;
 	}
+
+	/**
+		Takes `list[at]` out of `list`, `length` long, moving the ones after
+		it down a place. Not by `splice`, which makes an array of what it
+		removes: garbage on every removal on the jvm and JavaScript. Natively
+		past a few, by one `memmove`: moved one at a time they cost about a
+		nanosecond each, 10 microseconds to take the first of a runtime's
+		10,000 tick listeners out.
+	**/
+	static inline function closeUp(list:Array<Listener>, at:Int, length:Int):Void {
+		var i:Int = at + 1;
+		#if (cpp && !cppia)
+		if (length - i > MOVED_BY_HAND) {
+			cpp.NativeArray.blit(list, at, list, i, length - i);
+			i = length;
+		}
+		#end
+		while (i < length) {
+			list[i - 1] = list[i];
+			i++;
+		}
+		list.pop();
+	}
+
+	#if (cpp && !cppia)
+	/** How many listeners after one taken out are moved down one at a time natively, rather than by `memmove`. **/
+	static inline var MOVED_BY_HAND:Int = 8;
+	#end
 
 	/** Forgets `type` and its list, which has listeners. **/
 	private function forget(type:String):Void {
