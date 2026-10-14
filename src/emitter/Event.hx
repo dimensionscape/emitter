@@ -8,7 +8,7 @@ package emitter;
 
 	## Dispatching one again
 
-	`Emitter.dispatch` sets `target` only when it is null: an event
+	`Events.dispatch` sets `target` only when it is null: an event
 	that already has one is taken to be handed on from a listener of another
 	emitter, and keeps it. So to dispatch the same object again from scratch
 	(one event kept per frame, or per arrival on a socket), call `reuse()`
@@ -32,7 +32,7 @@ class Event {
 	public var type(default, null):String;
 
 	/**
-		Whether `Emitter.dispatch` carries the event up from the emitter
+		Whether `Events.dispatch` carries the event up from the emitter
 		it is dispatched on, through each `getEventParent()`.
 	**/
 	public var bubbles(default, null):Bool;

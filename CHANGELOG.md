@@ -1,12 +1,15 @@
 ## [2.0.0] - Unreleased
 
 A redesign: one `Emitter` carries typed signals and events on one dispatch core, with a small API (`on`, `once`,
-`off`, `emit`, `dispatch`, `has`, `clear`) and hooks for frameworks to build on. The 1.x API is replaced, not kept
+`off`, `emit`, `dispatch`, `has`, `clear`, reached through `emitter.events`) and hooks for frameworks to build on. The 1.x API is replaced, not kept
 alongside.
 
 ### Added
 - **Events:** `Event` (type, target, current target, bubbling, stop and cancel, `reuse`, `clone`), `EventType<T>`
   typing a listener by its event, and `dispatch(event)`.
+- **`events`:** the verbs live on `emitter.events`, a view of the emitter itself (nothing is made for it, and each
+  verb is inlined where it is called), so a class built on `Emitter` inherits one name and keeps `clear`, `has`,
+  `dispatch` and the rest for members of its own. `IEmitter` is `events`.
 - **Subscriptions:** `on` and `once` answer with a `Subscription`; `cancel()` removes that listener, a lambda
   included, with no function equality needed, and `active` says whether it still listens.
 - **`has(token, ?listener)`** and **`clear(?token)`** for both signals and events.

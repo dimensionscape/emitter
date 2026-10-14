@@ -20,29 +20,29 @@ class Example {
 	static function signals() {
 		trace("Signals");
 		var player = new Player();
-		player.on(Player.MOVED, (x, y) -> trace("moved by " + (x + y)));
-		player.emit(Player.MOVED, 1.5, 2.5);
+		player.events.on(Player.MOVED, (x, y) -> trace("moved by " + (x + y)));
+		player.events.emit(Player.MOVED, 1.5, 2.5);
 
 		// A higher priority runs earlier; once listens for the next emit only.
-		player.on(Player.TICK, () -> trace("tick"));
-		player.on(Player.TICK, () -> trace("first, priority 10"), 10);
-		player.once(Player.TICK, () -> trace("only the first time"));
-		player.emit(Player.TICK);
-		player.emit(Player.TICK);
-		trace("heard by anyone: " + player.emit(Player.NOTHING));
+		player.events.on(Player.TICK, () -> trace("tick"));
+		player.events.on(Player.TICK, () -> trace("first, priority 10"), 10);
+		player.events.once(Player.TICK, () -> trace("only the first time"));
+		player.events.emit(Player.TICK);
+		player.events.emit(Player.TICK);
+		trace("heard by anyone: " + player.events.emit(Player.NOTHING));
 	}
 
 	static function events() {
 		trace("Events");
 		var game = new Emitter();
-		game.on(ScoreEvent.SCORED, event -> trace("scored " + event.points));
-		game.dispatch(new ScoreEvent(10));
+		game.events.on(ScoreEvent.SCORED, event -> trace("scored " + event.points));
+		game.events.dispatch(new ScoreEvent(10));
 
 		// Adding an event listener already there does nothing.
 		var onScored = (event:ScoreEvent) -> trace("added twice, heard once");
-		game.on(ScoreEvent.SCORED, onScored);
-		game.on(ScoreEvent.SCORED, onScored);
-		game.dispatch(new ScoreEvent(20));
+		game.events.on(ScoreEvent.SCORED, onScored);
+		game.events.on(ScoreEvent.SCORED, onScored);
+		game.events.dispatch(new ScoreEvent(20));
 	}
 
 	static function removing() {
@@ -50,20 +50,20 @@ class Example {
 		var player = new Player();
 
 		// A subscription removes its listener, a lambda included.
-		var moved = player.on(Player.MOVED, (x, y) -> trace("never heard"));
+		var moved = player.events.on(Player.MOVED, (x, y) -> trace("never heard"));
 		moved.cancel();
 		trace("still listening: " + moved.active);
 
 		// off removes a method by reading it again.
 		var hud = new Hud(player);
-		player.emit(Player.MOVED, 1, 2);
+		player.events.emit(Player.MOVED, 1, 2);
 		hud.close(player);
-		trace("anything listening: " + player.has(Player.MOVED));
+		trace("anything listening: " + player.events.has(Player.MOVED));
 
 		// clear removes every listener of a signal, or with nothing given, all.
-		player.on(Player.TICK, () -> {});
-		player.clear();
-		trace("anything listening after clear: " + player.has(Player.TICK));
+		player.events.on(Player.TICK, () -> {});
+		player.events.clear();
+		trace("anything listening after clear: " + player.events.has(Player.TICK));
 	}
 
 	static function bubbling() {
@@ -71,16 +71,16 @@ class Example {
 		var root = new Node();
 		var leaf = new Node(root);
 		var rootHeard = false;
-		root.on(Event.CHANGE, event -> {
+		root.events.on(Event.CHANGE, event -> {
 			rootHeard = true;
 			trace("root heard it, dispatched on the leaf: " + (event.target == leaf));
 		});
-		leaf.dispatch(new Event(Event.CHANGE, true));
+		leaf.events.dispatch(new Event(Event.CHANGE, true));
 
 		// A listener on the way can stop it.
 		rootHeard = false;
-		leaf.on(Event.CHANGE, event -> event.stopPropagation());
-		leaf.dispatch(new Event(Event.CHANGE, true));
+		leaf.events.on(Event.CHANGE, event -> event.stopPropagation());
+		leaf.events.dispatch(new Event(Event.CHANGE, true));
 		trace("root heard it after the leaf stopped it: " + rootHeard);
 	}
 
@@ -106,11 +106,11 @@ class Player extends Emitter {
 
 class Hud {
 	public function new(player:Player) {
-		player.on(Player.MOVED, onMoved);
+		player.events.on(Player.MOVED, onMoved);
 	}
 
 	public function close(player:Player) {
-		player.off(Player.MOVED, onMoved);
+		player.events.off(Player.MOVED, onMoved);
 	}
 
 	function onMoved(x:Float, y:Float):Void {
@@ -152,19 +152,19 @@ class EventDispatcher extends Emitter {
 	}
 
 	public inline function addEventListener<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Void {
-		on(type, listener, priority);
+		events.on(type, listener, priority);
 	}
 
 	public inline function removeEventListener<T:Event>(type:EventType<T>, listener:T->Void):Void {
-		off(type, listener);
+		events.off(type, listener);
 	}
 
 	public inline function hasEventListener(type:String):Bool {
-		return has(type);
+		return events.has(type);
 	}
 
 	public inline function dispatchEvent(event:Event):Bool {
-		return dispatch(event);
+		return events.dispatch(event);
 	}
 }
 

@@ -17,11 +17,11 @@ class DispatchTest extends Test {
 		var emitter = new Emitter();
 		var target:Null<IEmitter> = null;
 		var current:Null<IEmitter> = null;
-		emitter.on(PING, function(e:Event) {
+		emitter.events.on(PING, function(e:Event) {
 			target = e.target;
 			current = e.currentTarget;
 		});
-		emitter.dispatch(new Event(PING));
+		emitter.events.dispatch(new Event(PING));
 		Assert.equals((emitter : IEmitter), target);
 		Assert.equals((emitter : IEmitter), current);
 	}
@@ -29,7 +29,7 @@ class DispatchTest extends Test {
 	function testWithNoListenersTheTargetIsStillSet() {
 		var emitter = new Emitter();
 		var event = new Event(PING);
-		Assert.isFalse(emitter.dispatch(event));
+		Assert.isFalse(emitter.events.dispatch(event));
 		Assert.equals((emitter : IEmitter), event.target);
 	}
 
@@ -37,17 +37,17 @@ class DispatchTest extends Test {
 		var holder = new Holder();
 		var target:Null<IEmitter> = null;
 		var current:Null<IEmitter> = null;
-		holder.on(PING, function(e:Event) {
+		holder.events.on(PING, function(e:Event) {
 			target = e.target;
 			current = e.currentTarget;
 		});
-		holder.dispatch(new Event(PING));
+		holder.events.dispatch(new Event(PING));
 		Assert.equals((holder : IEmitter), target);
 		Assert.equals((holder : IEmitter), current);
 
 		var quiet = new Event(PING, true);
-		holder.emitter.clear();
-		holder.dispatch(quiet);
+		holder.emitter.events.clear();
+		holder.events.dispatch(quiet);
 		Assert.equals((holder : IEmitter), quiet.target);
 	}
 
@@ -55,70 +55,70 @@ class DispatchTest extends Test {
 		var first = new Emitter();
 		var second = new Emitter();
 		var seen = [];
-		first.on(PING, function(e:Event) {
+		first.events.on(PING, function(e:Event) {
 			seen.push("first:" + (e.currentTarget == first));
-			second.dispatch(e);
+			second.events.dispatch(e);
 		});
-		first.on(PING, function(e:Event) seen.push("after:" + (e.target == first) + "," + (e.currentTarget == first)));
-		second.on(PING, function(e:Event) seen.push("second:" + (e.target == first) + "," + (e.currentTarget == second)));
-		first.dispatch(new Event(PING));
+		first.events.on(PING, function(e:Event) seen.push("after:" + (e.target == first) + "," + (e.currentTarget == first)));
+		second.events.on(PING, function(e:Event) seen.push("second:" + (e.target == first) + "," + (e.currentTarget == second)));
+		first.events.dispatch(new Event(PING));
 		Assert.equals("first:true,second:true,true,after:true,true", seen.join(","));
 	}
 
 	function testAnEventHandedOnGetsItsCurrentTargetBackWhenAListenerThrows() {
 		var first = new Emitter();
 		var second = new Emitter();
-		second.on(PING, function(_) throw "boom");
+		second.events.on(PING, function(_) throw "boom");
 		var after:Null<IEmitter> = null;
-		first.on(PING, function(e:Event) {
+		first.events.on(PING, function(e:Event) {
 			try {
-				second.dispatch(e);
+				second.events.dispatch(e);
 			} catch (_:Dynamic) {}
 			after = e.currentTarget;
 		});
-		first.dispatch(new Event(PING));
+		first.events.dispatch(new Event(PING));
 		Assert.equals((first : IEmitter), after);
 	}
 
 	function testStopImmediatePropagationSkipsTheRest() {
 		var emitter = new Emitter();
 		var log = [];
-		emitter.on(PING, function(e:Event) {
+		emitter.events.on(PING, function(e:Event) {
 			log.push("a");
 			e.stopImmediatePropagation();
 		});
-		emitter.on(PING, function(_) log.push("b"));
-		Assert.isTrue(emitter.dispatch(new Event(PING)));
+		emitter.events.on(PING, function(_) log.push("b"));
+		Assert.isTrue(emitter.events.dispatch(new Event(PING)));
 		Assert.equals("a", log.join(","));
 	}
 
 	function testStopPropagationLetsThisEmittersListenersFinish() {
 		var emitter = new Emitter();
 		var log = [];
-		emitter.on(PING, function(e:Event) {
+		emitter.events.on(PING, function(e:Event) {
 			log.push("a");
 			e.stopPropagation();
 		});
-		emitter.on(PING, function(_) log.push("b"));
-		emitter.dispatch(new Event(PING));
+		emitter.events.on(PING, function(_) log.push("b"));
+		emitter.events.dispatch(new Event(PING));
 		Assert.equals("a,b", log.join(","));
 	}
 
 	function testPreventDefaultReachesTheDispatcher() {
 		var emitter = new Emitter();
-		emitter.on(PING, function(e:Event) e.preventDefault());
+		emitter.events.on(PING, function(e:Event) e.preventDefault());
 		var event = new Event(PING, false, true);
-		emitter.dispatch(event);
+		emitter.events.dispatch(event);
 		Assert.isTrue(event.defaultPrevented);
 	}
 
 	function testAThrowFromTheOnlyListenerReachesTheCallerUntouched() {
 		var emitter = new Emitter();
 		var thrown = new haxe.Exception("only");
-		emitter.on(PING, function(_) throw thrown);
+		emitter.events.on(PING, function(_) throw thrown);
 		var caught:Null<haxe.Exception> = null;
 		try {
-			emitter.dispatch(new Event(PING));
+			emitter.events.dispatch(new Event(PING));
 		} catch (e:haxe.Exception) {
 			caught = e;
 		}
@@ -130,12 +130,12 @@ class DispatchTest extends Test {
 		var emitter = new Emitter();
 		var thrown = new haxe.Exception("second");
 		var log = [];
-		emitter.on(PING, function(_) log.push("a"));
-		emitter.on(PING, function(_) throw thrown);
-		emitter.on(PING, function(_) log.push("c"));
+		emitter.events.on(PING, function(_) log.push("a"));
+		emitter.events.on(PING, function(_) throw thrown);
+		emitter.events.on(PING, function(_) log.push("c"));
 		var caught:Null<haxe.Exception> = null;
 		try {
-			emitter.dispatch(new Event(PING));
+			emitter.events.dispatch(new Event(PING));
 		} catch (e:haxe.Exception) {
 			caught = e;
 		}
@@ -145,22 +145,22 @@ class DispatchTest extends Test {
 
 		// Left as it was: a removal from inside the next dispatch still lets
 		// the removed listener run for it, and a later one does not.
-		emitter.clear();
+		emitter.events.clear();
 		var late = function(_:Event) log.push("late");
-		emitter.on(PING, function(_) emitter.off(PING, late));
-		emitter.on(PING, late);
-		emitter.dispatch(new Event(PING));
-		emitter.dispatch(new Event(PING));
+		emitter.events.on(PING, function(_) emitter.events.off(PING, late));
+		emitter.events.on(PING, late);
+		emitter.events.dispatch(new Event(PING));
+		emitter.events.dispatch(new Event(PING));
 		Assert.equals("a,late", log.join(","));
 	}
 
 	function testAThrownValueThatIsNotAnExceptionIsRethrownAsItself() {
 		var emitter = new Emitter();
-		emitter.on(PING, function(_) {});
-		emitter.on(PING, function(_) throw "plain");
+		emitter.events.on(PING, function(_) {});
+		emitter.events.on(PING, function(_) throw "plain");
 		var caught:Dynamic = null;
 		try {
-			emitter.dispatch(new Event(PING));
+			emitter.events.dispatch(new Event(PING));
 		} catch (e:Dynamic) {
 			caught = e;
 		}
@@ -175,13 +175,13 @@ class DispatchTest extends Test {
 		for (listeners in [1, 3]) {
 			var emitter = new Emitter();
 			for (_ in 1...listeners) {
-				emitter.on(PING, function(_) {});
+				emitter.events.on(PING, function(_) {});
 			}
-			emitter.on(PING, throwsPlainValue);
+			emitter.events.on(PING, throwsPlainValue);
 			var caught:Dynamic = null;
 			var stack = "";
 			try {
-				emitter.dispatch(new Event(PING));
+				emitter.events.dispatch(new Event(PING));
 			} catch (e:Dynamic) {
 				caught = e;
 				stack = CallStack.toString(CallStack.exceptionStack());
@@ -199,11 +199,11 @@ class DispatchTest extends Test {
 
 	function testARethrownExceptionKeepsTheStackItWasThrownFrom() {
 		var emitter = new Emitter();
-		emitter.on(PING, function(_) {});
-		emitter.on(PING, throwsException);
+		emitter.events.on(PING, function(_) {});
+		emitter.events.on(PING, throwsException);
 		var stack = "";
 		try {
-			emitter.dispatch(new Event(PING));
+			emitter.events.dispatch(new Event(PING));
 		} catch (e:haxe.Exception) {
 			stack = CallStack.toString(e.stack) + CallStack.toString(CallStack.exceptionStack());
 		}
@@ -229,8 +229,8 @@ class DispatchTest extends Test {
 		var root = new Node("root");
 		leaf.parent = root;
 		var log = [];
-		leaf.on(PING, function(e:Event) log.push("leaf:" + (e.currentTarget == leaf) + "," + (e.target == null)));
-		root.on(PING, function(_) log.push("root"));
+		leaf.events.on(PING, function(e:Event) log.push("leaf:" + (e.currentTarget == leaf) + "," + (e.target == null)));
+		root.events.on(PING, function(_) log.push("root"));
 		var event = new Event(PING, true);
 		Assert.isTrue(leaf.dispatchLocal(event));
 		Assert.equals("leaf:true,true", log.join(","));
@@ -244,7 +244,7 @@ class DispatchTest extends Test {
 		var a = new Emitter();
 		var b = new Emitter();
 		var seen:Null<IEmitter> = null;
-		b.on(PING, function(e:Event) seen = e.target);
+		b.events.on(PING, function(e:Event) seen = e.target);
 		var event = new Event(PING);
 		@:privateAccess event.target = a;
 		b.dispatchLocal(event);
@@ -255,11 +255,11 @@ class DispatchTest extends Test {
 	function testDispatchContainedRunsEveryListenerAndReportsEachFailure() {
 		var emitter = new Recording();
 		var log = [];
-		emitter.on(PING, function(_) log.push("a"));
-		emitter.on(PING, function(_) throw new haxe.Exception("b"));
-		emitter.on(PING, function(_) log.push("c"));
-		emitter.on(PING, function(_) throw "d");
-		emitter.on(PING, function(_) log.push("e"));
+		emitter.events.on(PING, function(_) log.push("a"));
+		emitter.events.on(PING, function(_) throw new haxe.Exception("b"));
+		emitter.events.on(PING, function(_) log.push("c"));
+		emitter.events.on(PING, function(_) throw "d");
+		emitter.events.on(PING, function(_) log.push("e"));
 		Assert.isTrue(emitter.dispatchContained(new Event(PING)));
 		Assert.equals("a,c,e", log.join(","));
 		Assert.equals("b@ping,d@ping", emitter.thrown.join(","));
@@ -272,28 +272,28 @@ class DispatchTest extends Test {
 		var emitter = new Recording();
 		var log = [];
 		var nested = false;
-		emitter.on(PING, function(_) {
+		emitter.events.on(PING, function(_) {
 			log.push("a");
 			if (!nested) {
 				nested = true;
 				emitter.dispatchContained(new Event(PING));
 			}
 		});
-		emitter.once(PING, function(_) {
+		emitter.events.once(PING, function(_) {
 			log.push("o");
 			throw "o";
 		});
-		emitter.on(PING, function(_) log.push("b"));
-		emitter.once(PING, function(_) log.push("p"));
-		emitter.on(PING, function(_) log.push("c"));
+		emitter.events.on(PING, function(_) log.push("b"));
+		emitter.events.once(PING, function(_) log.push("p"));
+		emitter.events.on(PING, function(_) log.push("c"));
 		emitter.dispatchContained(new Event(PING));
 		// The nested dispatch spends both once listeners; the outer one
 		// passes over them to every listener after each.
 		Assert.equals("a,a,o,b,p,c,b,c", log.join(","));
 		emitter.dispatchContained(new Event(PING));
 		// Spent where they stood, without a nested dispatch.
-		emitter.once(PING, function(_) log.push("q"), 1);
-		emitter.on(PING, function(_) log.push("d"), 1);
+		emitter.events.once(PING, function(_) log.push("q"), 1);
+		emitter.events.on(PING, function(_) log.push("d"), 1);
 		emitter.dispatchContained(new Event(PING));
 		Assert.equals("a,a,o,b,p,c,b,c,a,b,c,q,d,a,b,c", log.join(","));
 		Assert.equals("o@ping", emitter.thrown.join(","));
@@ -302,7 +302,7 @@ class DispatchTest extends Test {
 
 	function testDispatchContainedReportsTheOnlyListenersFailure() {
 		var emitter = new Recording();
-		emitter.on(PING, function(_) throw new haxe.Exception("only"));
+		emitter.events.on(PING, function(_) throw new haxe.Exception("only"));
 		Assert.isTrue(emitter.dispatchContained(new Event(PING)));
 		Assert.equals("only@ping", emitter.thrown.join(","));
 	}
@@ -310,8 +310,8 @@ class DispatchTest extends Test {
 	function testAFailingListenerThrewHookStillPutsTheCountBack() {
 		var emitter = new Recording();
 		emitter.throwFromHook = true;
-		emitter.on(PING, function(_) {});
-		emitter.on(PING, function(_) throw new haxe.Exception("listener"));
+		emitter.events.on(PING, function(_) {});
+		emitter.events.on(PING, function(_) throw new haxe.Exception("listener"));
 		var caught = "";
 		try {
 			emitter.dispatchContained(new Event(PING));
@@ -326,11 +326,11 @@ class DispatchTest extends Test {
 		var root = new Recording();
 		var log = [];
 		var tree = new ContainedTree(root);
-		tree.on(PING, function(e:Event) {
+		tree.events.on(PING, function(e:Event) {
 			log.push("leaf:" + (e.target == tree));
 			throw "leaf";
 		});
-		root.on(PING, function(e:Event) log.push("root:" + (e.target == tree) + "," + (e.currentTarget == root)));
+		root.events.on(PING, function(e:Event) log.push("root:" + (e.target == tree) + "," + (e.currentTarget == root)));
 		Assert.isTrue(tree.dispatchContained(new Event(PING, true)));
 		Assert.equals("leaf:true,root:true,true", log.join(","));
 		Assert.equals(1, tree.thrown.length);
@@ -339,13 +339,13 @@ class DispatchTest extends Test {
 	function testStopFlagsAreReadAfterEachListenerNotBefore() {
 		var emitter = new Emitter();
 		var log = [];
-		emitter.on(PING, function(_) log.push("a"));
-		emitter.on(PING, function(e:Event) {
+		emitter.events.on(PING, function(_) log.push("a"));
+		emitter.events.on(PING, function(e:Event) {
 			log.push("b");
 			e.stopImmediatePropagation();
 		});
-		emitter.on(PING, function(_) log.push("c"));
-		emitter.dispatch(new Event(PING));
+		emitter.events.on(PING, function(_) log.push("c"));
+		emitter.events.dispatch(new Event(PING));
 		Assert.equals("a,b", log.join(","));
 	}
 }

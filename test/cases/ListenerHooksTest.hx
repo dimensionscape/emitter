@@ -24,9 +24,9 @@ class ListenerHooksTest extends Test {
 
 	function testEachListenerAddedIsReportedWithItsSubscription() {
 		var emitter = new Witness();
-		var a = emitter.on(PING, function(_) {});
-		var b = emitter.on(PING, function(_) {}, 5);
-		var c = emitter.once(PONG, function(_) {});
+		var a = emitter.events.on(PING, function(_) {});
+		var b = emitter.events.on(PING, function(_) {}, 5);
+		var c = emitter.events.once(PONG, function(_) {});
 		Assert.equals("ping+,added ping,added ping,pong+,added pong", emitter.log());
 		Assert.isTrue(emitter.added[0] == a, "the first report is not the first subscription");
 		Assert.isTrue(emitter.added[1] == b, "the second report is not the second subscription");
@@ -38,23 +38,23 @@ class ListenerHooksTest extends Test {
 		// then the type closes.
 		var emitter = new Witness();
 		var listener = function(_:Event) {};
-		emitter.on(PING, listener);
-		emitter.off(PING, listener);
+		emitter.events.on(PING, listener);
+		emitter.events.off(PING, listener);
 		Assert.equals("ping+,added ping,removed ping,ping-", emitter.log());
 	}
 
 	function testAnIgnoredDuplicateIsNotReported() {
 		var emitter = new Witness();
 		var listener = function(_:Event) {};
-		emitter.on(PING, listener);
-		emitter.on(PING, listener);
-		emitter.once(PING, listener, 3);
+		emitter.events.on(PING, listener);
+		emitter.events.on(PING, listener);
+		emitter.events.once(PING, listener, 3);
 		Assert.equals("ping+,added ping", emitter.log());
 
 		var keeping = new Witness();
 		keeping.allowDuplicates = true;
-		var first = keeping.on(PING, listener);
-		var second = keeping.on(PING, listener);
+		var first = keeping.events.on(PING, listener);
+		var second = keeping.events.on(PING, listener);
 		Assert.equals("ping+,added ping,added ping", keeping.log());
 		Assert.isTrue(keeping.added[0] == first && keeping.added[1] == second, "each duplicate kept was not reported with its own subscription");
 	}
@@ -63,11 +63,11 @@ class ListenerHooksTest extends Test {
 		var emitter = new Witness();
 		var a = function(_:Event) {};
 		var b = function(_:Event) {};
-		var first = emitter.on(PING, a);
-		var second = emitter.on(PING, b);
+		var first = emitter.events.on(PING, a);
+		var second = emitter.events.on(PING, b);
 		emitter.clearLog();
-		emitter.off(PING, b);
-		emitter.off(PING, b);
+		emitter.events.off(PING, b);
+		emitter.events.off(PING, b);
 		Assert.equals("removed ping", emitter.log());
 		Assert.isTrue(emitter.removed[0] == second, "off reported another subscription");
 		first.cancel();
@@ -80,9 +80,9 @@ class ListenerHooksTest extends Test {
 		// Read again for off: a new closure on eval and the jvm.
 		var emitter = new Witness();
 		var subscriber = new Subscriber();
-		var subscription = emitter.on(PING, subscriber.handle);
+		var subscription = emitter.events.on(PING, subscriber.handle);
 		emitter.clearLog();
-		emitter.off(PING, subscriber.handle);
+		emitter.events.off(PING, subscriber.handle);
 		Assert.equals("removed ping,ping-", emitter.log());
 		Assert.isTrue(emitter.removed[0] == subscription);
 	}
@@ -91,40 +91,40 @@ class ListenerHooksTest extends Test {
 		// Alone, among others, spent first by a nested dispatch, and in a
 		// contained dispatch.
 		var alone = new Witness();
-		var single = alone.once(PING, function(_) {});
+		var single = alone.events.once(PING, function(_) {});
 		alone.clearLog();
-		alone.dispatch(new Event(PING));
-		alone.dispatch(new Event(PING));
+		alone.events.dispatch(new Event(PING));
+		alone.events.dispatch(new Event(PING));
 		Assert.equals("removed ping,ping-", alone.log());
 		Assert.isTrue(alone.removed[0] == single);
 
 		var among = new Witness();
-		among.on(PING, function(_) {});
-		var spent = among.once(PING, function(_) {});
-		among.on(PING, function(_) {});
+		among.events.on(PING, function(_) {});
+		var spent = among.events.once(PING, function(_) {});
+		among.events.on(PING, function(_) {});
 		among.clearLog();
-		among.dispatch(new Event(PING));
-		among.dispatch(new Event(PING));
+		among.events.dispatch(new Event(PING));
+		among.events.dispatch(new Event(PING));
 		Assert.equals("removed ping", among.log());
 		Assert.isTrue(among.removed[0] == spent);
 
 		var nested = new Witness();
 		var outer = true;
-		nested.on(PING, function(_) {
+		nested.events.on(PING, function(_) {
 			if (outer) {
 				outer = false;
-				nested.dispatch(new Event(PING));
+				nested.events.dispatch(new Event(PING));
 			}
 		});
-		var inner = nested.once(PING, function(_) {});
+		var inner = nested.events.once(PING, function(_) {});
 		nested.clearLog();
-		nested.dispatch(new Event(PING));
+		nested.events.dispatch(new Event(PING));
 		Assert.equals("removed ping", nested.log());
 		Assert.isTrue(nested.removed[0] == inner);
 
 		var contained = new Witness();
-		var spentContained = contained.once(PING, function(_) {});
-		contained.on(PING, function(_) {});
+		var spentContained = contained.events.once(PING, function(_) {});
+		contained.events.on(PING, function(_) {});
 		contained.clearLog();
 		contained.dispatchContained(new Event(PING));
 		Assert.equals("removed ping", contained.log());
@@ -136,10 +136,10 @@ class ListenerHooksTest extends Test {
 		// finds it gone: one report, not two.
 		var emitter = new Witness();
 		var late = function(_:Event) {};
-		emitter.on(PING, function(_) emitter.off(PING, late));
-		var subscription = emitter.once(PING, late);
+		emitter.events.on(PING, function(_) emitter.events.off(PING, late));
+		var subscription = emitter.events.once(PING, late);
 		emitter.clearLog();
-		emitter.dispatch(new Event(PING));
+		emitter.events.dispatch(new Event(PING));
 		Assert.equals("removed ping", emitter.log());
 		Assert.isTrue(emitter.removed[0] == subscription);
 		Assert.equals(1, emitter.removed.length);
@@ -147,20 +147,20 @@ class ListenerHooksTest extends Test {
 
 	function testClearReportsEachListenerAndThenItsType() {
 		var emitter = new Witness();
-		var a = emitter.on(PING, function(_) {});
-		var b = emitter.on(PING, function(_) {}, 2);
-		emitter.on(PONG, function(_) {});
+		var a = emitter.events.on(PING, function(_) {});
+		var b = emitter.events.on(PING, function(_) {}, 2);
+		emitter.events.on(PONG, function(_) {});
 		emitter.clearLog();
-		emitter.clear(PING);
-		emitter.clear(PING);
+		emitter.events.clear(PING);
+		emitter.events.clear(PING);
 		Assert.equals("removed ping,removed ping,ping-", emitter.log());
 		// In the order they ran.
 		Assert.isTrue(emitter.removed[0] == b && emitter.removed[1] == a, "clear reported other subscriptions, or out of order");
 
-		emitter.on("third", function(_:Event) {});
-		emitter.on("third", function(_:Event) {});
+		emitter.events.on("third", function(_:Event) {});
+		emitter.events.on("third", function(_:Event) {});
 		emitter.clearLog();
-		emitter.clear();
+		emitter.events.clear();
 		// Each type's listeners, then the type, in no particular order of types.
 		var groups = emitter.log().split(",");
 		Assert.equals(5, groups.length);
@@ -168,7 +168,7 @@ class ListenerHooksTest extends Test {
 		Assert.isTrue(text.indexOf("removed pong,pong-") >= 0, text);
 		Assert.isTrue(text.indexOf("removed third,removed third,third-") >= 0, text);
 		emitter.clearLog();
-		emitter.clear();
+		emitter.events.clear();
 		Assert.equals("", emitter.log());
 	}
 
@@ -176,37 +176,37 @@ class ListenerHooksTest extends Test {
 		// Past the names kept in a chain, into a map: the same reports.
 		var emitter = new Witness();
 		for (i in 0...12) {
-			emitter.on("t" + i, function(_:Event) {});
-			emitter.on("t" + i, function(_:Event) {});
+			emitter.events.on("t" + i, function(_:Event) {});
+			emitter.events.on("t" + i, function(_:Event) {});
 		}
 		emitter.clearLog();
-		emitter.clear();
+		emitter.events.clear();
 		Assert.equals(24, emitter.removed.length);
 		Assert.equals(12, [for (entry in emitter.entries) if (entry.charAt(entry.length - 1) == "-") entry].length);
 	}
 
 	function testSignalsAreNotReported() {
 		var emitter = new Witness();
-		var subscription = emitter.on(VALUE, function(_) {});
-		emitter.once(VALUE, function(_) {});
-		emitter.emit(VALUE, 1);
+		var subscription = emitter.events.on(VALUE, function(_) {});
+		emitter.events.once(VALUE, function(_) {});
+		emitter.events.emit(VALUE, 1);
 		subscription.cancel();
-		emitter.on(VALUE, function(_) {});
-		emitter.clear(VALUE);
-		emitter.on(VALUE, function(_) {});
-		emitter.clear();
+		emitter.events.on(VALUE, function(_) {});
+		emitter.events.clear(VALUE);
+		emitter.events.on(VALUE, function(_) {});
+		emitter.events.clear();
 		Assert.equals("", emitter.log());
 	}
 
 	function testTheHooksSeeTheChangeAlreadyMade() {
 		var emitter = new Witness();
 		var listener = function(_:Event) {};
-		emitter.on(PING, listener);
-		emitter.on(PING, function(_) {});
-		emitter.off(PING, listener);
+		emitter.events.on(PING, listener);
+		emitter.events.on(PING, function(_) {});
+		emitter.events.off(PING, listener);
 		Assert.equals("true,true,true", emitter.listenedInside.join(","));
 		Assert.equals("true,true,false", emitter.listenerInside.join(","));
-		emitter.clear(PING);
+		emitter.events.clear(PING);
 		Assert.equals("true,true,true,false", emitter.listenedInside.join(","));
 	}
 
@@ -214,11 +214,11 @@ class ListenerHooksTest extends Test {
 		var emitter = new Lister();
 		Assert.equals(0, emitter.listOf(PING).length);
 		Assert.equals(0, emitter.listOf(null).length);
-		var a = emitter.on(PING, function(_) {});
-		var b = emitter.on(PING, function(_) {}, 5);
-		var c = emitter.on(PING, function(_) {});
-		var d = emitter.on(PING, function(_) {}, -1);
-		emitter.on(PONG, function(_) {});
+		var a = emitter.events.on(PING, function(_) {});
+		var b = emitter.events.on(PING, function(_) {}, 5);
+		var c = emitter.events.on(PING, function(_) {});
+		var d = emitter.events.on(PING, function(_) {}, -1);
+		emitter.events.on(PONG, function(_) {});
 		var listed = emitter.listOf(PING);
 		Assert.equals(4, listed.length);
 		Assert.isTrue(listed[0] == b && listed[1] == a && listed[2] == c && listed[3] == d, "not in the order a dispatch runs them");
@@ -228,7 +228,7 @@ class ListenerHooksTest extends Test {
 		Assert.equals(4, listed.length);
 		listed.pop();
 		Assert.equals(3, emitter.listOf(PING).length);
-		Assert.isTrue(emitter.has(PING));
+		Assert.isTrue(emitter.events.has(PING));
 	}
 
 	function testListenersOfDuringADispatchSaysWhatIsThereNow() {
@@ -238,21 +238,21 @@ class ListenerHooksTest extends Test {
 		var counts:Array<Int> = [];
 		var second = function(_:Event) counts.push(emitter.listOf(PING).length);
 		var added = function(_:Event) {};
-		emitter.on(PING, function(_) {
-			emitter.off(PING, second);
-			emitter.on(PING, added);
+		emitter.events.on(PING, function(_) {
+			emitter.events.off(PING, second);
+			emitter.events.on(PING, added);
 			counts.push(emitter.listOf(PING).length);
 		});
-		emitter.on(PING, second);
-		emitter.dispatch(new Event(PING));
+		emitter.events.on(PING, second);
+		emitter.events.dispatch(new Event(PING));
 		Assert.equals("2,2", counts.join(","));
 	}
 
 	function testListenersOfLeavesOutAOnceAlreadyCalled() {
 		var emitter = new Lister();
-		var kept = emitter.on(PING, function(_) {});
-		emitter.once(PING, function(_) {});
-		emitter.dispatch(new Event(PING));
+		var kept = emitter.events.on(PING, function(_) {});
+		emitter.events.once(PING, function(_) {});
+		emitter.events.dispatch(new Event(PING));
 		var listed = emitter.listOf(PING);
 		Assert.equals(1, listed.length);
 		Assert.isTrue(listed[0] == kept);
@@ -264,7 +264,7 @@ class ListenerHooksTest extends Test {
 		var listener = function(event:Event):Void {
 			heard.push(event.type);
 		};
-		var subscription = emitter.on(PING, listener);
+		var subscription = emitter.events.on(PING, listener);
 		var call:Event->Void = cast subscription.listener;
 		call(new Event(PING));
 		Assert.equals("ping", heard.join(","));
@@ -274,7 +274,7 @@ class ListenerHooksTest extends Test {
 		#end
 
 		var values:Array<Int> = [];
-		var signal = emitter.on(VALUE, function(v:Int):Void {
+		var signal = emitter.events.on(VALUE, function(v:Int):Void {
 			values.push(v);
 		});
 		var emit:Int->Void = cast signal.listener;
@@ -298,10 +298,10 @@ class ListenerHooksTest extends Test {
 		var heard:Array<String> = [];
 		var a = function(_:Event) heard.push("a");
 		var subscriber = new Subscriber();
-		publisher.on(PING, a);
-		publisher.on(PING, subscriber.handle, 3);
-		var c = publisher.once(PING, function(_) heard.push("c"));
-		var d = publisher.on(PING, function(_) heard.push("d"), -2);
+		publisher.events.on(PING, a);
+		publisher.events.on(PING, subscriber.handle, 3);
+		var c = publisher.events.once(PING, function(_) heard.push("c"));
+		var d = publisher.events.on(PING, function(_) heard.push("d"), -2);
 		publisher.callCopy(new Event(PING));
 		Assert.equals("a,c,d", heard.join(","));
 		Assert.equals(1, subscriber.calls);
@@ -309,39 +309,39 @@ class ListenerHooksTest extends Test {
 		Assert.isFalse(c.active, "a once listener called from the copy still listens");
 
 		heard = [];
-		publisher.off(PING, subscriber.handle);
+		publisher.events.off(PING, subscriber.handle);
 		d.cancel();
 		publisher.callCopy(new Event(PING));
 		Assert.equals("a", heard.join(","));
 		Assert.equals(1, subscriber.calls);
 
 		// A once listener called by a dispatch here leaves the copy too.
-		publisher.once(PING, function(_) heard.push("e"));
+		publisher.events.once(PING, function(_) heard.push("e"));
 		heard = [];
-		publisher.dispatch(new Event(PING));
+		publisher.events.dispatch(new Event(PING));
 		Assert.equals("a,e", heard.join(","));
 		heard = [];
 		publisher.callCopy(new Event(PING));
 		Assert.equals("a", heard.join(","));
 
-		publisher.clear(PING);
+		publisher.events.clear(PING);
 		Assert.equals(0, publisher.copy.length);
-		publisher.on(PING, a);
+		publisher.events.on(PING, a);
 		Assert.equals(1, publisher.copy.length);
-		publisher.clear();
+		publisher.events.clear();
 		Assert.equals(0, publisher.copy.length);
 	}
 
 	function testASubscriptionSaysWhetherItWasAddedWithOnce() {
 		var emitter = new Emitter();
-		Assert.isFalse(emitter.on(PING, function(_) {}).once);
-		Assert.isFalse(emitter.on(VALUE, function(_) {}).once);
-		var event = emitter.once(PONG, function(_) {});
-		var signal = emitter.once(VALUE, function(_) {});
+		Assert.isFalse(emitter.events.on(PING, function(_) {}).once);
+		Assert.isFalse(emitter.events.on(VALUE, function(_) {}).once);
+		var event = emitter.events.once(PONG, function(_) {});
+		var signal = emitter.events.once(VALUE, function(_) {});
 		Assert.isTrue(event.once);
 		Assert.isTrue(signal.once);
-		emitter.dispatch(new Event(PONG));
-		emitter.emit(VALUE, 1);
+		emitter.events.dispatch(new Event(PONG));
+		emitter.events.emit(VALUE, 1);
 		// Still what it was added as, once it has run.
 		Assert.isTrue(event.once && !event.active);
 		Assert.isTrue(signal.once && !signal.active);
@@ -352,14 +352,14 @@ class ListenerHooksTest extends Test {
 		// afterwards, alone, later: the others heard it when it happened.
 		var latch = new Latch();
 		var log:Array<String> = [];
-		latch.on(PING, function(_) log.push("early"));
+		latch.events.on(PING, function(_) log.push("early"));
 		latch.happen();
 		Assert.equals("early", log.join(","));
 
-		latch.on(PING, function(_) log.push("late"));
+		latch.events.on(PING, function(_) log.push("late"));
 		var gone = function(_:Event) log.push("gone");
-		latch.on(PING, gone);
-		latch.off(PING, gone);
+		latch.events.on(PING, gone);
+		latch.events.off(PING, gone);
 		latch.flush();
 		Assert.equals("early,late", log.join(","));
 		latch.flush();
@@ -390,14 +390,14 @@ private class Witness extends Emitter {
 	override private function listenerAdded(type:String, listener:Subscription):Void {
 		entries.push("added " + type);
 		added.push(listener);
-		listenedInside.push(has(type));
+		listenedInside.push(events.has(type));
 		listenerInside.push(listener.active);
 	}
 
 	override private function listenerRemoved(type:String, listener:Subscription):Void {
 		entries.push("removed " + type);
 		removed.push(listener);
-		listenedInside.push(has(type));
+		listenedInside.push(events.has(type));
 		listenerInside.push(listener.active);
 	}
 
@@ -437,7 +437,7 @@ private class Publisher extends Emitter {
 
 	public function new() {
 		super();
-		own = on(ListenerHooksTest.PING_NAME, function(_) {});
+		own = events.on(ListenerHooksTest.PING_NAME, function(_) {});
 	}
 
 	override private function listenerAdded(type:String, listener:Subscription):Void {
@@ -490,7 +490,7 @@ private class Latch extends Emitter {
 
 	public function happen():Void {
 		happened = true;
-		dispatch(new Event(ListenerHooksTest.PING_NAME));
+		events.dispatch(new Event(ListenerHooksTest.PING_NAME));
 	}
 
 	override private function listenerAdded(type:String, listener:Subscription):Void {

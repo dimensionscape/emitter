@@ -4,11 +4,11 @@ import emitter._internal.Listener;
 import haxe.Constraints.Function;
 
 /**
-	A listener as `on` and `once` added it: keep it to remove that listener
+	A listener as `events.on` and `events.once` added it: keep it to remove that listener
 	later, a lambda included, with no need to find the function again.
 
 	```haxe
-	var moved = player.on(Player.MOVED, (x, y) -> trace(x, y));
+	var moved = player.events.on(Player.MOVED, (x, y) -> trace(x, y));
 	moved.cancel();
 	```
 

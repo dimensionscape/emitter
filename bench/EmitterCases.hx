@@ -24,7 +24,7 @@ class EmitterCases {
 	static function listening(type:EventType<Event>, count:Int):Emitter {
 		var emitter = new Emitter();
 		for (_ in 0...count) {
-			emitter.on(type, function(_:Event) Bench.sink++);
+			emitter.events.on(type, function(_:Event) Bench.sink++);
 		}
 		return emitter;
 	}
@@ -33,17 +33,17 @@ class EmitterCases {
 	static function many():Emitter {
 		var emitter = new Emitter();
 		for (type in ["pang", "peng", "pung", "pyng"]) {
-			emitter.on(type, function(_:Event) Bench.sink++);
+			emitter.events.on(type, function(_:Event) Bench.sink++);
 		}
 		return emitter;
 	}
 
 	static function signals():Emitter {
 		var emitter = new Emitter();
-		emitter.on(S0, function() Bench.sink++);
-		emitter.on(S1, function(a:Int) Bench.sink += a);
-		emitter.on(S3, function(a:Int, b:Event, c:Int) Bench.sink += a + c);
-		emitter.on(SF, function(a:Float) if (a > 1) Bench.sink++);
+		emitter.events.on(S0, function() Bench.sink++);
+		emitter.events.on(S1, function(a:Int) Bench.sink += a);
+		emitter.events.on(S3, function(a:Int, b:Event, c:Int) Bench.sink += a + c);
+		emitter.events.on(SF, function(a:Float) if (a > 1) Bench.sink++);
 		return emitter;
 	}
 
@@ -52,7 +52,7 @@ class EmitterCases {
 		var mid = new Node(root);
 		var leaf = new Node(mid);
 		for (node in [root, mid, leaf]) {
-			node.on(PING, function(_:Event) Bench.sink++);
+			node.events.on(PING, function(_:Event) Bench.sink++);
 		}
 		return leaf;
 	}
@@ -64,7 +64,7 @@ class EmitterCases {
 			return function() {
 				for (i in 0...INNER) {
 					event.reuse();
-					both[i & 1].dispatch(event);
+					both[i & 1].events.dispatch(event);
 				}
 			}
 		});
@@ -73,7 +73,7 @@ class EmitterCases {
 			var event = new Event(PING);
 			return function() {
 				for (i in 0...INNER) {
-					both[i & 1].dispatch(event);
+					both[i & 1].events.dispatch(event);
 				}
 			}
 		});
@@ -83,7 +83,7 @@ class EmitterCases {
 			return function() {
 				for (i in 0...INNER) {
 					event.reuse();
-					both[i & 1].dispatch(event);
+					both[i & 1].events.dispatch(event);
 				}
 			}
 		});
@@ -93,7 +93,7 @@ class EmitterCases {
 			return function() {
 				for (i in 0...INNER) {
 					event.reuse();
-					both[i & 1].dispatch(event);
+					both[i & 1].events.dispatch(event);
 				}
 			}
 		});
@@ -103,7 +103,7 @@ class EmitterCases {
 			return function() {
 				for (i in 0...INNER) {
 					event.reuse();
-					both[i & 1].dispatch(event);
+					both[i & 1].events.dispatch(event);
 				}
 			}
 		});
@@ -111,7 +111,7 @@ class EmitterCases {
 			var both = [listening(PING, 1), listening(PING, 1)];
 			return function() {
 				for (i in 0...INNER) {
-					if (both[i & 1].has(PING)) {
+					if (both[i & 1].events.has(PING)) {
 						Bench.sink++;
 					}
 				}
@@ -122,20 +122,20 @@ class EmitterCases {
 			var listener = function(_:Event) Bench.sink++;
 			return function() {
 				for (_ in 0...INNER) {
-					shared.on(PING, listener);
-					shared.off(PING, listener);
+					shared.events.on(PING, listener);
+					shared.events.off(PING, listener);
 				}
 			}
 		});
 		Bench.time("add + remove, the type has one, duplicates kept", function() {
 			var keeping = new Emitter();
 			keeping.allowDuplicates = true;
-			keeping.on(PING, function(_:Event) Bench.sink++);
+			keeping.events.on(PING, function(_:Event) Bench.sink++);
 			var listener = function(_:Event) Bench.sink++;
 			return function() {
 				for (_ in 0...INNER) {
-					keeping.on(PING, listener);
-					keeping.off(PING, listener);
+					keeping.events.on(PING, listener);
+					keeping.events.off(PING, listener);
 				}
 			}
 		});
@@ -144,7 +144,7 @@ class EmitterCases {
 			var listener = function(_:Event) Bench.sink++;
 			return function() {
 				for (i in 0...INNER) {
-					both[i & 1].on(PING, listener).cancel();
+					both[i & 1].events.on(PING, listener).cancel();
 				}
 			}
 		});
@@ -153,8 +153,8 @@ class EmitterCases {
 			var listener = function(_:Event) Bench.sink++;
 			return function() {
 				for (_ in 0...INNER) {
-					other.on(PING, listener);
-					other.off(PING, listener);
+					other.events.on(PING, listener);
+					other.events.off(PING, listener);
 				}
 			}
 		});
@@ -162,7 +162,7 @@ class EmitterCases {
 			var both = [signals(), signals()];
 			return function() {
 				for (i in 0...INNER) {
-					both[i & 1].emit(S0);
+					both[i & 1].events.emit(S0);
 				}
 			}
 		});
@@ -170,7 +170,7 @@ class EmitterCases {
 			var both = [signals(), signals()];
 			return function() {
 				for (i in 0...INNER) {
-					both[i & 1].emit(S1, 1);
+					both[i & 1].events.emit(S1, 1);
 				}
 			}
 		});
@@ -179,7 +179,7 @@ class EmitterCases {
 			var event = new Event(PING);
 			return function() {
 				for (i in 0...INNER) {
-					both[i & 1].emit(S3, 1, event, 2);
+					both[i & 1].events.emit(S3, 1, event, 2);
 				}
 			}
 		});
@@ -187,7 +187,7 @@ class EmitterCases {
 			var both = [signals(), signals()];
 			return function() {
 				for (i in 0...INNER) {
-					both[i & 1].emit(SF, 0.5);
+					both[i & 1].events.emit(SF, 0.5);
 				}
 			}
 		});
@@ -195,12 +195,12 @@ class EmitterCases {
 			var both = [new Emitter(), new Emitter()];
 			for (emitter in both) {
 				for (_ in 0...4) {
-					emitter.on(S1, function(a:Int) Bench.sink += a);
+					emitter.events.on(S1, function(a:Int) Bench.sink += a);
 				}
 			}
 			return function() {
 				for (i in 0...INNER) {
-					both[i & 1].emit(S1, 1);
+					both[i & 1].events.emit(S1, 1);
 				}
 			}
 		});
@@ -208,7 +208,7 @@ class EmitterCases {
 			var both = [signals(), signals()];
 			return function() {
 				for (i in 0...INNER) {
-					both[i & 1].emit(SN, 1);
+					both[i & 1].events.emit(SN, 1);
 				}
 			}
 		});
@@ -218,8 +218,8 @@ class EmitterCases {
 			return function() {
 				for (i in 0...INNER) {
 					var emitter = both[i & 1];
-					emitter.on(S1, listener);
-					emitter.off(S1, listener);
+					emitter.events.on(S1, listener);
+					emitter.events.off(S1, listener);
 				}
 			}
 		});
@@ -228,7 +228,7 @@ class EmitterCases {
 			var listener = function(a:Int) Bench.sink += a;
 			return function() {
 				for (i in 0...INNER) {
-					both[i & 1].on(S1, listener).cancel();
+					both[i & 1].events.on(S1, listener).cancel();
 				}
 			}
 		});
@@ -238,8 +238,8 @@ class EmitterCases {
 			return function() {
 				for (i in 0...INNER) {
 					var emitter = both[i & 1];
-					emitter.once(S1, listener);
-					emitter.emit(S1, 1);
+					emitter.events.once(S1, listener);
+					emitter.events.emit(S1, 1);
 				}
 			}
 		});
@@ -249,7 +249,7 @@ class EmitterCases {
 			return function() {
 				for (i in 0...INNER) {
 					event.reuse();
-					both[i & 1].dispatch(event);
+					both[i & 1].events.dispatch(event);
 				}
 			}
 		});
@@ -258,7 +258,7 @@ class EmitterCases {
 			var listener = function(a:Int) Bench.sink += a;
 			return function() {
 				var emitter = new Emitter();
-				emitter.on(S1, listener);
+				emitter.events.on(S1, listener);
 				Bench.kept = emitter;
 			}
 		});
@@ -266,23 +266,23 @@ class EmitterCases {
 			var emitter = signals();
 			var listener = function(a:Int) Bench.sink += a;
 			return function() {
-				emitter.on(S1, listener);
-				emitter.off(S1, listener);
+				emitter.events.on(S1, listener);
+				emitter.events.off(S1, listener);
 			}
 		});
 		Bench.bytes("subscribe + cancel, the signal has one", function() {
 			var emitter = signals();
 			var listener = function(a:Int) Bench.sink += a;
 			return function() {
-				emitter.on(S1, listener).cancel();
+				emitter.events.on(S1, listener).cancel();
 			}
 		});
 		Bench.bytes("once, then emit", function() {
 			var emitter = signals();
 			var listener = function(a:Int) Bench.sink += a;
 			return function() {
-				emitter.once(S1, listener);
-				emitter.emit(S1, 1);
+				emitter.events.once(S1, listener);
+				emitter.events.emit(S1, 1);
 			}
 		});
 		Bench.bytes("idle emitter", function() {
@@ -292,7 +292,7 @@ class EmitterCases {
 			var listener = function(_:Event) Bench.sink++;
 			return function() {
 				var made = new Emitter();
-				made.on(PING, listener);
+				made.events.on(PING, listener);
 				Bench.kept = made;
 			}
 		});
@@ -301,7 +301,7 @@ class EmitterCases {
 			var event = new Event(PING);
 			return function() {
 				event.reuse();
-				one.dispatch(event);
+				one.events.dispatch(event);
 			}
 		});
 		Bench.bytes("dispatch, 4 listeners", function() {
@@ -309,36 +309,36 @@ class EmitterCases {
 			var event = new Event(PING);
 			return function() {
 				event.reuse();
-				four.dispatch(event);
+				four.events.dispatch(event);
 			}
 		});
 		Bench.bytes("emit, 1 argument", function() {
 			var emitter = signals();
-			return function() emitter.emit(S1, 1);
+			return function() emitter.events.emit(S1, 1);
 		});
 		Bench.bytes("emit, 3 arguments", function() {
 			var emitter = signals();
 			var event = new Event(PING);
-			return function() emitter.emit(S3, 1, event, 2);
+			return function() emitter.events.emit(S3, 1, event, 2);
 		});
 		Bench.bytes("emit, 1 Float argument", function() {
 			var emitter = signals();
-			return function() emitter.emit(SF, 0.5);
+			return function() emitter.events.emit(SF, 0.5);
 		});
 		Bench.bytes("bubble, 3 levels, a listener on each", function() {
 			var leaf = tree();
 			var event = new Event(PING, true);
 			return function() {
 				event.reuse();
-				leaf.dispatch(event);
+				leaf.events.dispatch(event);
 			}
 		});
 		Bench.bytes("add + remove, the type has one", function() {
 			var shared = listening(PING, 1);
 			var listener = function(_:Event) Bench.sink++;
 			return function() {
-				shared.on(PING, listener);
-				shared.off(PING, listener);
+				shared.events.on(PING, listener);
+				shared.events.off(PING, listener);
 			}
 		});
 	}

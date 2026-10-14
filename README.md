@@ -8,8 +8,10 @@ An `Emitter` holds two kinds of listener:
 - **Events**: an `Event` object sent to the listeners of its type, with priorities, bubbling up a tree of parents,
   stopping and cancelling.
 
-The whole API is seven words: `on`, `once`, `off`, `emit`, `dispatch`, `has` and `clear`. It is tested natively
-(hxcpp), on the jvm, Node, eval, HashLink and Neko.
+The whole API is seven words, reached through an emitter's `events`: `on`, `once`, `off`, `emit`, `dispatch`,
+`has` and `clear`. Kept there, they leave a class built on `Emitter` one name to inherit, and `clear`, `has` or
+`dispatch` free for members of its own; `events` is a view of the emitter, so reaching it costs nothing. It is
+tested natively (hxcpp), on the jvm, Node, eval, HashLink and Neko.
 
 ## Installation
 
@@ -36,13 +38,13 @@ class Player extends Emitter {
 }
 ```
 
-Listen with `on`, and send with `emit`. Both are checked when they are compiled, and a listener's argument types
+Listen with `events.on`, and send with `events.emit`. Both are checked when they are compiled, and a listener's argument types
 come from the signal:
 
 ```haxe
 var player = new Player();
-var moved = player.on(Player.MOVED, (x, y) -> trace(x + y));
-player.emit(Player.MOVED, 1.5, 2.5); // traces 4
+var moved = player.events.on(Player.MOVED, (x, y) -> trace(x + y));
+player.events.emit(Player.MOVED, 1.5, 2.5); // traces 4
 ```
 
 `emit` is inlined where it is called, returns whether anything listened, and allocates nothing (natively hxcpp
@@ -74,20 +76,20 @@ The same `on` listens for it, and `dispatch` sends it:
 
 ```haxe
 var game = new Emitter();
-game.on(ScoreEvent.SCORED, event -> trace(event.points));
-game.dispatch(new ScoreEvent(10)); // traces 10
+game.events.on(ScoreEvent.SCORED, event -> trace(event.points));
+game.events.dispatch(new ScoreEvent(10)); // traces 10
 ```
 
 A listener can call `event.stopPropagation()`, `event.stopImmediatePropagation()` and, on a cancelable event,
 `event.preventDefault()`, which the dispatcher reads back as `event.defaultPrevented`. A plain string names an
-event type too: `game.on("ready", (event:Event) -> ...)`.
+event type too: `game.events.on("ready", (event:Event) -> ...)`.
 
 ## Removing a listener
 
 `on` and `once` answer with a `Subscription`. Keep it to remove that listener, a lambda included:
 
 ```haxe
-var moved = player.on(Player.MOVED, (x, y) -> trace(x + y));
+var moved = player.events.on(Player.MOVED, (x, y) -> trace(x + y));
 moved.cancel();
 trace(moved.active); // false
 ```
@@ -97,8 +99,8 @@ trace(moved.active); // false
 ```haxe
 class Hud {
 	public function new(player:Player) {
-		player.on(Player.MOVED, onMoved);
-		player.off(Player.MOVED, onMoved);
+		player.events.on(Player.MOVED, onMoved);
+		player.events.off(Player.MOVED, onMoved);
 	}
 
 	function onMoved(x:Float, y:Float):Void {}
@@ -140,8 +142,8 @@ class Node extends Emitter {
 
 var root = new Node();
 var leaf = new Node(root);
-root.on(Event.CHANGE, event -> trace(event.target == leaf)); // true
-leaf.dispatch(new Event(Event.CHANGE, true));
+root.events.on(Event.CHANGE, event -> trace(event.target == leaf)); // true
+leaf.events.dispatch(new Event(Event.CHANGE, true));
 ```
 
 An event that does not bubble never asks for a parent. `dispatch` sets an event's `target` only when it has none,
@@ -181,7 +183,7 @@ A framework extends `Emitter` and overrides the hooks it needs:
   others: what it threw goes to `listenerThrew(error, event)`, which a framework overrides to report it.
 - `dispatchLocal(event)` runs one emitter's listeners and nothing else, for a propagation the framework builds itself.
 - `new Emitter(owner)` makes events dispatched through it say `owner` is their target, for a class that keeps an
-  emitter inside rather than extending one. `IEmitter` (`dispatch`) is what both have in common.
+  emitter inside rather than extending one. `IEmitter` (`events`) is what both have in common.
 - `allowDuplicates` keeps an event listener added twice, for an emitter that holds one per connection.
 
 Names a framework's users already know stay its own, each a one-line inline method on its dispatcher, so its call
@@ -190,19 +192,19 @@ sites compile unchanged. ActionScript's, as Graphaxe and CrossByte would add the
 ```haxe
 class EventDispatcher extends emitter.Emitter {
 	public inline function addEventListener<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Void {
-		on(type, listener, priority);
+		events.on(type, listener, priority);
 	}
 
 	public inline function removeEventListener<T:Event>(type:EventType<T>, listener:T->Void):Void {
-		off(type, listener);
+		events.off(type, listener);
 	}
 
 	public inline function hasEventListener(type:String):Bool {
-		return has(type);
+		return events.has(type);
 	}
 
 	public inline function dispatchEvent(event:Event):Bool {
-		return dispatch(event);
+		return events.dispatch(event);
 	}
 }
 ```
@@ -243,6 +245,8 @@ hxml per target. `HL` and `NEKO` name the HashLink and Neko runtimes when they a
 
 - `SignalType` and `SignalType1` to `SignalType5` become `Signal0` to `Signal5`, typed by their arguments only:
   `SignalType1<Int->Void, Int>` is `Signal1<Int>`.
+- The verbs are reached through `events`: `emitter.on(...)` is `emitter.events.on(...)`, and the same for `once`,
+  `off`, `emit`, `has` and `clear`.
 - `on` and `once` answer with a `Subscription` rather than the emitter, so calls no longer chain; `once` takes no
   arity.
 - `emit` returns whether anything listened.

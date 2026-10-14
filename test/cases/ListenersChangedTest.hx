@@ -16,35 +16,35 @@ class ListenersChangedTest extends Test {
 		var emitter = new Recording();
 		var a = function(_:Event) {};
 		var b = function(_:Event) {};
-		emitter.on(PING, a);
-		emitter.on(PING, b);
-		emitter.off(PING, a);
-		emitter.off(PING, a);
-		emitter.off(PING, b);
+		emitter.events.on(PING, a);
+		emitter.events.on(PING, b);
+		emitter.events.off(PING, a);
+		emitter.events.off(PING, a);
+		emitter.events.off(PING, b);
 		Assert.equals("ping+,ping-", emitter.log());
 	}
 
 	function testAnIgnoredDuplicateIsNotAChange() {
 		var emitter = new Recording();
 		var a = function(_:Event) {};
-		emitter.on(PING, a);
-		emitter.on(PING, a);
-		emitter.on(PING, a, 9);
-		emitter.once(PING, a);
+		emitter.events.on(PING, a);
+		emitter.events.on(PING, a);
+		emitter.events.on(PING, a, 9);
+		emitter.events.once(PING, a);
 		Assert.equals("ping+", emitter.log());
 	}
 
 	function testOnceAndAPriorityReportTheFirstListener() {
 		var emitter = new Recording();
-		emitter.on(PING, function(_) {}, 3);
-		emitter.once(PONG, function(_) {});
+		emitter.events.on(PING, function(_) {}, 3);
+		emitter.events.once(PONG, function(_) {});
 		Assert.equals("ping+,pong+", emitter.log());
 	}
 
 	function testCancellingTheLastSubscriptionReportsTheLast() {
 		var emitter = new Recording();
-		var a = emitter.on(PING, function(_) {});
-		var b = emitter.once(PING, function(_) {});
+		var a = emitter.events.on(PING, function(_) {});
+		var b = emitter.events.once(PING, function(_) {});
 		a.cancel();
 		Assert.equals("ping+", emitter.log());
 		b.cancel();
@@ -54,37 +54,37 @@ class ListenersChangedTest extends Test {
 
 	function testAOnceListenerBeingCalledReportsTheLast() {
 		var emitter = new Recording();
-		emitter.once(PING, function(_) {});
-		emitter.dispatch(new Event(PING));
+		emitter.events.once(PING, function(_) {});
+		emitter.events.dispatch(new Event(PING));
 		Assert.equals("ping+,ping-", emitter.log());
 
 		var many = new Recording();
-		many.once(PING, function(_) {});
-		many.once(PING, function(_) {});
-		many.dispatch(new Event(PING));
+		many.events.once(PING, function(_) {});
+		many.events.once(PING, function(_) {});
+		many.events.dispatch(new Event(PING));
 		Assert.equals("ping+,ping-", many.log());
 	}
 
 	function testCancellingTheOnlyOnceReportsTheLast() {
 		var emitter = new Recording();
 		var a = function(_:Event) {};
-		emitter.once(PING, a);
-		emitter.off(PING, a);
+		emitter.events.once(PING, a);
+		emitter.events.off(PING, a);
 		Assert.equals("ping+,ping-", emitter.log());
 	}
 
 	function testRemovingATypeOrAllReportsEachType() {
 		var emitter = new Recording();
-		emitter.on(PING, function(_) {});
-		emitter.on(PING, function(_) {});
-		emitter.on(PONG, function(_) {});
-		emitter.clear(PING);
-		emitter.clear(PING);
+		emitter.events.on(PING, function(_) {});
+		emitter.events.on(PING, function(_) {});
+		emitter.events.on(PONG, function(_) {});
+		emitter.events.clear(PING);
+		emitter.events.clear(PING);
 		Assert.equals("ping+,pong+,ping-", emitter.log());
 
-		emitter.on("third", function(_:Event) {});
+		emitter.events.on("third", function(_:Event) {});
 		emitter.changes = [];
-		emitter.clear();
+		emitter.events.clear();
 		var reported = emitter.changes.copy();
 		reported.sort(Reflect.compare);
 		Assert.equals("pong-,third-", reported.join(","));
@@ -92,25 +92,25 @@ class ListenersChangedTest extends Test {
 
 	function testRemoveAllListenersReportsEveryEventType() {
 		var emitter = new Recording();
-		emitter.on(PING, function(_) {});
-		emitter.on(PONG, function(_) {});
+		emitter.events.on(PING, function(_) {});
+		emitter.events.on(PONG, function(_) {});
 		emitter.changes = [];
-		emitter.clear();
+		emitter.events.clear();
 		var reported = emitter.changes.copy();
 		reported.sort(Reflect.compare);
 		Assert.equals("ping-,pong-", reported.join(","));
 		emitter.changes = [];
-		emitter.clear();
+		emitter.events.clear();
 		Assert.equals("", emitter.log());
 	}
 
 	function testTheHookSeesTheChangeAlreadyMade() {
 		var emitter = new Recording();
 		var a = function(_:Event) {};
-		emitter.on(PING, a);
-		emitter.off(PING, a);
-		emitter.once(PONG, function(_) {});
-		emitter.dispatch(new Event(PONG));
+		emitter.events.on(PING, a);
+		emitter.events.off(PING, a);
+		emitter.events.once(PONG, function(_) {});
+		emitter.events.dispatch(new Event(PONG));
 		Assert.equals("true,false,true,false", emitter.presentInside.join(","));
 	}
 
@@ -118,10 +118,10 @@ class ListenersChangedTest extends Test {
 		// Past the chain into the map, the same reports.
 		var emitter = new Recording();
 		for (i in 0...12) {
-			emitter.on("t" + i, function(_:Event) {});
+			emitter.events.on("t" + i, function(_:Event) {});
 		}
 		for (i in 0...12) {
-			emitter.clear("t" + i);
+			emitter.events.clear("t" + i);
 		}
 		Assert.equals(24, emitter.changes.length);
 		Assert.equals("t11-", emitter.changes[23]);
@@ -129,23 +129,23 @@ class ListenersChangedTest extends Test {
 
 	function testAHookMayAddListenersWhileEverythingIsRemoved() {
 		var emitter = new Rearming();
-		emitter.on(PING, function(_) {});
-		emitter.clear();
-		Assert.isTrue(emitter.has(PONG));
-		Assert.isFalse(emitter.has(PING));
+		emitter.events.on(PING, function(_) {});
+		emitter.events.clear();
+		Assert.isTrue(emitter.events.has(PONG));
+		Assert.isFalse(emitter.events.has(PING));
 	}
 
 	function testListenersChangedDuringADispatchAreReportedAtOnce() {
 		var emitter = new Recording();
 		var b = function(_:Event) {};
-		emitter.on(PING, function(_) {
-			emitter.off(PING, b);
-			emitter.on(PONG, b);
-			emitter.clear(PING);
+		emitter.events.on(PING, function(_) {
+			emitter.events.off(PING, b);
+			emitter.events.on(PONG, b);
+			emitter.events.clear(PING);
 		});
-		emitter.on(PING, b);
+		emitter.events.on(PING, b);
 		emitter.changes = [];
-		emitter.dispatch(new Event(PING));
+		emitter.events.dispatch(new Event(PING));
 		Assert.equals("pong+,ping-", emitter.log());
 	}
 }
@@ -158,7 +158,7 @@ private class Rearming extends Emitter {
 
 	override private function listenersChanged(type:String, present:Bool):Void {
 		if (type == "ping" && !present) {
-			on("pong", function(_:Event) {});
+			events.on("pong", function(_:Event) {});
 		}
 	}
 }

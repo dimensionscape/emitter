@@ -9,7 +9,7 @@ package emitter;
 		public static inline var LOADED:EventType<LoadEvent> = "loaded";
 	}
 
-	emitter.on(LoadEvent.LOADED, event -> trace(event.type));
+	emitter.events.on(LoadEvent.LOADED, event -> trace(event.type));
 	```
 
 	At run time it is the `String` it was made from: nothing is allocated

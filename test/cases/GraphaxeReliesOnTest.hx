@@ -28,10 +28,10 @@ class GraphaxeReliesOnTest extends Test {
 		for (_ in 0...5) {
 			list.reuse(renderer);
 		}
-		renderer.dispatch(new Event(TRIGGERED));
+		renderer.events.dispatch(new Event(TRIGGERED));
 		Assert.equals(1, triggered);
 		list.dispose(renderer);
-		renderer.dispatch(new Event(TRIGGERED));
+		renderer.events.dispatch(new Event(TRIGGERED));
 		Assert.equals(1, triggered);
 	}
 
@@ -52,18 +52,18 @@ class GraphaxeReliesOnTest extends Test {
 				return;
 			}
 			log.push("closed");
-			stage.off(POINTER_UP, onStageRelease);
+			stage.events.off(POINTER_UP, onStageRelease);
 		};
-		button.on(POINTER_UP, function(_) {
+		button.events.on(POINTER_UP, function(_) {
 			log.push("opened");
 			ignoreNextStageRelease = true;
-			stage.on(POINTER_UP, onStageRelease);
+			stage.events.on(POINTER_UP, onStageRelease);
 		});
-		button.dispatch(new Event(POINTER_UP, true));
+		button.events.dispatch(new Event(POINTER_UP, true));
 		Assert.equals("opened,ignored", log.join(","));
-		stage.dispatch(new Event(POINTER_UP, true));
+		stage.events.dispatch(new Event(POINTER_UP, true));
 		Assert.equals("opened,ignored,closed", log.join(","));
-		Assert.isFalse(stage.has(POINTER_UP));
+		Assert.isFalse(stage.events.has(POINTER_UP));
 	}
 
 	function testAListenerRemovingAndAddingItselfDuringADispatchIsSafe() {
@@ -72,19 +72,19 @@ class GraphaxeReliesOnTest extends Test {
 		var rearm:Event->Void = null;
 		rearm = function(_:Event) {
 			log.push("rearm");
-			shape.off(ENTER_FRAME, rearm);
-			shape.on(ENTER_FRAME, rearm);
+			shape.events.off(ENTER_FRAME, rearm);
+			shape.events.on(ENTER_FRAME, rearm);
 		};
 		var once:Event->Void = null;
 		once = function(_:Event) {
 			log.push("once");
-			shape.off(ENTER_FRAME, once);
+			shape.events.off(ENTER_FRAME, once);
 		};
-		shape.on(ENTER_FRAME, rearm);
-		shape.on(ENTER_FRAME, once);
-		shape.on(ENTER_FRAME, function(_) log.push("last"));
-		shape.dispatch(new Event(ENTER_FRAME));
-		shape.dispatch(new Event(ENTER_FRAME));
+		shape.events.on(ENTER_FRAME, rearm);
+		shape.events.on(ENTER_FRAME, once);
+		shape.events.on(ENTER_FRAME, function(_) log.push("last"));
+		shape.events.dispatch(new Event(ENTER_FRAME));
+		shape.events.dispatch(new Event(ENTER_FRAME));
 		Assert.equals("rearm,once,last,last,rearm", log.join(","));
 	}
 
@@ -95,15 +95,15 @@ class GraphaxeReliesOnTest extends Test {
 		var button = new Shape("button", stage);
 		var answers = [];
 		var press = function(_:Event) {};
-		button.on(POINTER_UP, function(_) {
-			button.off(POINTER_UP, press);
-			answers.push(button.has(POINTER_UP, press));
-			answers.push(stage.has(POINTER_UP));
-			stage.on(POINTER_UP, press);
-			answers.push(stage.has(POINTER_UP));
+		button.events.on(POINTER_UP, function(_) {
+			button.events.off(POINTER_UP, press);
+			answers.push(button.events.has(POINTER_UP, press));
+			answers.push(stage.events.has(POINTER_UP));
+			stage.events.on(POINTER_UP, press);
+			answers.push(stage.events.has(POINTER_UP));
 		});
-		button.on(POINTER_UP, press);
-		button.dispatch(new Event(POINTER_UP));
+		button.events.on(POINTER_UP, press);
+		button.events.dispatch(new Event(POINTER_UP));
 		Assert.equals("false,false,true", answers.join(","));
 	}
 
@@ -116,31 +116,31 @@ class GraphaxeReliesOnTest extends Test {
 		var shape = new Shape("shape", null, stage);
 		var listener = function(_:Event) {};
 
-		var subscription = shape.on(ENTER_FRAME, listener, 5);
+		var subscription = shape.events.on(ENTER_FRAME, listener, 5);
 		Assert.equals("shape", stage.frames());
 		subscription.cancel();
 		Assert.equals("", stage.frames());
 
-		shape.once(ENTER_FRAME, function(_) {});
+		shape.events.once(ENTER_FRAME, function(_) {});
 		Assert.equals("shape", stage.frames());
 		stage.frame();
 		Assert.equals("", stage.frames());
 
-		shape.on(ENTER_FRAME, listener);
-		shape.on(RENDER, listener);
+		shape.events.on(ENTER_FRAME, listener);
+		shape.events.on(RENDER, listener);
 		Assert.equals("shape", stage.frames());
 		Assert.equals("shape", stage.renders());
-		shape.clear();
+		shape.events.clear();
 		Assert.equals("", stage.frames());
 		Assert.equals("", stage.renders());
 
-		shape.on(ENTER_FRAME, listener);
-		shape.on(ENTER_FRAME, function(_) {});
-		shape.clear();
+		shape.events.on(ENTER_FRAME, listener);
+		shape.events.on(ENTER_FRAME, function(_) {});
+		shape.events.clear();
 		Assert.equals("", stage.frames());
 
-		shape.on(RENDER, listener);
-		shape.clear(RENDER);
+		shape.events.on(RENDER, listener);
+		shape.events.clear(RENDER);
 		Assert.equals("", stage.renders());
 	}
 
@@ -149,12 +149,12 @@ class GraphaxeReliesOnTest extends Test {
 		// stopping the rest.
 		var field = new Shape("field");
 		var log = [];
-		field.on(POINTER_UP, function(e:Event) {
+		field.events.on(POINTER_UP, function(e:Event) {
 			log.push("overlay");
 			e.stopImmediatePropagation();
 		});
-		field.on(POINTER_UP, function(_) log.push("field"));
-		field.dispatch(new Event(POINTER_UP));
+		field.events.on(POINTER_UP, function(_) log.push("field"));
+		field.events.dispatch(new Event(POINTER_UP));
 		Assert.equals("overlay", log.join(","));
 	}
 
@@ -167,7 +167,7 @@ class GraphaxeReliesOnTest extends Test {
 		var log = [];
 		for (node in [stage, panel, button]) {
 			var name = node.name;
-			node.on(POINTER_UP, function(e:Event) log.push(name + ">" + Std.string(e.currentTarget)));
+			node.events.on(POINTER_UP, function(e:Event) log.push(name + ">" + Std.string(e.currentTarget)));
 		}
 		var chain = [button, panel, panel, stage];
 		var event = new Event(POINTER_UP, true);
@@ -191,8 +191,8 @@ class GraphaxeReliesOnTest extends Test {
 		// runtime/Window.hx is made by Type.createEmptyInstance.
 		var window:BareNode = Type.createEmptyInstance(BareNode);
 		var heard = 0;
-		window.on(Event.CLOSE, function(_) heard++);
-		window.dispatch(new Event(Event.CLOSE));
+		window.events.on(Event.CLOSE, function(_) heard++);
+		window.events.dispatch(new Event(Event.CLOSE));
 		Assert.equals(1, heard);
 	}
 
@@ -203,16 +203,16 @@ class GraphaxeReliesOnTest extends Test {
 		var a = new Shape("a");
 		var b = new Shape("b");
 		var targets = [];
-		a.on(ENTER_FRAME, function(e:Event) {
+		a.events.on(ENTER_FRAME, function(e:Event) {
 			targets.push(Std.string(e.target));
 			e.stopImmediatePropagation();
 		});
-		b.on(ENTER_FRAME, function(e:Event) targets.push(Std.string(e.target)));
-		b.on(ENTER_FRAME, function(e:Event) targets.push("b2"));
+		b.events.on(ENTER_FRAME, function(e:Event) targets.push(Std.string(e.target)));
+		b.events.on(ENTER_FRAME, function(e:Event) targets.push("b2"));
 		var frame = new Event(ENTER_FRAME);
 		for (shape in [a, b]) {
 			frame.reuse();
-			shape.dispatch(frame);
+			shape.events.dispatch(frame);
 		}
 		Assert.equals("a,b,b2", targets.join(","));
 	}
@@ -220,9 +220,9 @@ class GraphaxeReliesOnTest extends Test {
 	function testDispatchSaysWhetherAnyNodeListened() {
 		var stage = new Shape("stage");
 		var button = new Shape("button", stage);
-		Assert.isFalse(button.dispatch(new Event(TRIGGERED, true)));
-		stage.on(TRIGGERED, function(_) {});
-		Assert.isTrue(button.dispatch(new Event(TRIGGERED, true)));
+		Assert.isFalse(button.events.dispatch(new Event(TRIGGERED, true)));
+		stage.events.on(TRIGGERED, function(_) {});
+		Assert.isTrue(button.events.dispatch(new Event(TRIGGERED, true)));
 	}
 }
 
@@ -269,7 +269,7 @@ private class StageLike {
 		var event = new Event("enterFrame");
 		for (shape in enterFrame.copy()) {
 			event.reuse();
-			shape.dispatch(event);
+			shape.events.dispatch(event);
 		}
 	}
 
@@ -291,10 +291,10 @@ private class ListLike {
 	}
 
 	public function reuse(renderer:Emitter):Void {
-		renderer.on("triggered", onTriggered);
+		renderer.events.on("triggered", onTriggered);
 	}
 
 	public function dispose(renderer:Emitter):Void {
-		renderer.off("triggered", onTriggered);
+		renderer.events.off("triggered", onTriggered);
 	}
 }

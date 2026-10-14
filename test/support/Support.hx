@@ -4,6 +4,7 @@ import emitter.Emitter;
 import emitter.Event;
 import emitter.EventType;
 import emitter.IEmitter;
+import emitter.Events;
 import emitter.Subscription;
 
 /** An emitter in a tree: bubbling goes to `parent`, and counts how often it is asked. **/
@@ -65,7 +66,7 @@ class Recording extends Emitter {
 
 	override private function listenersChanged(type:String, present:Bool):Void {
 		changes.push(type + (present ? "+" : "-"));
-		presentInside.push(has(type));
+		presentInside.push(events.has(type));
 	}
 
 	override private function listenerThrew(error:haxe.Exception, event:Event):Void {
@@ -99,29 +100,19 @@ class ValueEvent extends Event {
 
 /**
 	Something that holds an emitter and hands its calls on: a delegate
-	target. It offers `on`, `off` and `has` of its own, as such a class does.
+	target. Its verbs are the emitter's, as such a class offers them.
 **/
 class Holder implements IEmitter {
 	public var emitter:Emitter;
+
+	public var events(get, never):Events;
 
 	public function new() {
 		emitter = new Emitter(this);
 	}
 
-	public inline function on<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Subscription {
-		return emitter.on(type, listener, priority);
-	}
-
-	public inline function off<T:Event>(type:EventType<T>, listener:T->Void):Void {
-		emitter.off(type, listener);
-	}
-
-	public inline function has<T:Event>(type:EventType<T>, ?listener:T->Void):Bool {
-		return emitter.has(type, listener);
-	}
-
-	public function dispatch(event:Event):Bool {
-		return emitter.dispatch(event);
+	function get_events():Events {
+		return emitter.events;
 	}
 }
 
@@ -136,26 +127,26 @@ class FlashDispatcher extends Emitter {
 	}
 
 	public inline function addEventListener<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Void {
-		on(type, listener, priority);
+		events.on(type, listener, priority);
 	}
 
 	public inline function removeEventListener<T:Event>(type:EventType<T>, listener:T->Void):Void {
-		off(type, listener);
+		events.off(type, listener);
 	}
 
 	public inline function hasEventListener(type:String):Bool {
-		return has(type);
+		return events.has(type);
 	}
 
 	public inline function dispatchEvent(event:Event):Bool {
-		return dispatch(event);
+		return events.dispatch(event);
 	}
 
 	public inline function removeEventListeners(?type:String):Void {
 		if (type == null) {
-			clear();
+			events.clear();
 		} else {
-			clear(type);
+			events.clear(type);
 		}
 	}
 }
