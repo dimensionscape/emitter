@@ -25,6 +25,7 @@ jobs:
         run: |
           haxelib install utest --quiet
           haxelib install hxnodejs --quiet
+          haxelib install hxjava --quiet
           haxelib install hxcpp --quiet
 
       - name: Run the example
