@@ -9,16 +9,18 @@ import haxe.ds.StringMap;
 	signals. Made when the lane gets its first listener, so an emitter
 	nothing listens to holds none.
 
-	**Finding a type.** Natively and on JavaScript, the types listened for
-	while there have been no more than `CHAINED` at once are chained in the
-	order each was first added: the first in the lane itself (`type` and
-	`list`), so finding it reads no more than finding a field, and the rest
-	in `next`. Past `CHAINED`, and on the other targets always, they are in
-	`map`. Walking a few links finds a type sooner than a map's lookup does
-	(natively by which string it is before what it says), and takes less
-	memory than a map. Elsewhere a map's lookup is about as cheap as one
-	compare, and nothing is chained. Never both: once there is a map, every
-	type is in it.
+	**Finding a type.** Natively, on the jvm and on JavaScript, the types
+	listened for while there have been no more than `CHAINED` at once are
+	chained in `Slot`s, in the order each was first added; past that they
+	are in `map`. Walking a few links finds a type sooner than a map's
+	lookup does (natively by which string it is before what it says), takes
+	less memory than a map, and leaves a dispatch small enough for a JIT to
+	inline whole. On eval, HashLink and Neko the types are always in a map.
+	Never both: once there is a map, every type is in it.
+
+	Where types are chained, the lane is the first slot itself, so finding
+	the first type reads no more than finding a field; elsewhere the lane is
+	the map itself, for the same reason.
 
 	**Changing a list during a dispatch.** A dispatch walks the array that
 	was current when it reached this emitter, without copying it. While one
@@ -31,7 +33,7 @@ import haxe.ds.StringMap;
 	A list is never empty: the type goes when its last listener does.
 **/
 @:noCompletion
-final class Lane {
+final class Lane extends #if (cpp || js || jvm) Slot #else StringMap<Array<Listener>> #end {
 	/** What `add` did: nothing, the listener being there already. **/
 	public static inline var IGNORED:Int = 0;
 
@@ -44,26 +46,20 @@ final class Lane {
 	/** What `remove` did: nothing, the listener not being there. **/
 	public static inline var NOT_FOUND:Int = 0;
 
-	#if (cpp || js)
+	#if (cpp || js || jvm)
 	/**
 		How many types are chained before they all go into a map: as many as
 		a walk was measured to find no later than the map would, a type
-		nothing listens for included (CrossByte's measurement).
+		nothing listens for included. Natively 8, where a walk compares
+		which string each type is before its text, and on JavaScript 4, where
+		it compares text (CrossByte's measurements); the jvm compares text as
+		JavaScript does, and takes its 4.
 	**/
 	public static inline var CHAINED:Int = #if cpp 8 #else 4 #end;
 
-	/** The first chained type, or null when none is or `map` holds them. **/
-	public var type:Null<String>;
-
-	/** The first chained type's listeners. **/
-	public var list:Null<Array<Listener>>;
-
-	/** The chained types after the first. **/
-	public var next:Null<Slot>;
-	#end
-
 	/** Every type and its listeners, by type, once they are not chained. **/
 	public var map:Null<StringMap<Array<Listener>>>;
+	#end
 
 	/** How many dispatches are walking one of this lane's lists now. **/
 	public var walking:Int;
@@ -75,12 +71,12 @@ final class Lane {
 	public var target:Null<IEmitter>;
 
 	public function new(target:Null<IEmitter>) {
-		#if (cpp || js)
-		type = null;
-		list = null;
-		next = null;
-		#end
+		#if (cpp || js || jvm)
+		super(null, null);
 		map = null;
+		#else
+		super();
+		#end
 		walking = 0;
 		keepDuplicates = false;
 		this.target = target;
@@ -91,7 +87,7 @@ final class Lane {
 		array is the one a dispatch walks: read it, never change it.
 	**/
 	public inline function listOf(type:String):Null<Array<Listener>> {
-		#if (cpp || js)
+		#if (cpp || js || jvm)
 		// The first chained type is found by one compare: with none chained,
 		// `this.type` is null and `this.list` too, so even a null type
 		// matching it finds nothing.
@@ -102,8 +98,12 @@ final class Lane {
 	}
 
 	private inline function mapped(type:String):Null<Array<Listener>> {
+		#if (cpp || js || jvm)
 		var map = this.map;
 		return (map == null || type == null) ? null : map.get(type);
+		#else
+		return type == null ? null : get(type);
+		#end
 	}
 
 	/**
@@ -176,7 +176,7 @@ final class Lane {
 
 		@return `NOT_FOUND`, `CHANGED`, or `TRANSITION` for the type's last.
 	**/
-	public inline function remove(type:String, fn:Function):Int {
+	public inline function removeListener(type:String, fn:Function):Int {
 		var list:Null<Array<Listener>> = listOf(type);
 		var at:Int = list == null ? -1 : indexOf(list, fn);
 		return at < 0 ? NOT_FOUND : removeAt(type, list, at);
@@ -224,12 +224,14 @@ final class Lane {
 		if (type == null) {
 			return false;
 		}
+		#if !(cpp || js || jvm)
+		return remove(type);
+		#else
 		var map = this.map;
 		if (map != null) {
 			return map.remove(type);
 		}
-		#if (cpp || js)
-		if (this.type == null) {
+		if (head() == null) {
 			return false;
 		}
 		#if (cpp && !cppia)
@@ -239,67 +241,33 @@ final class Lane {
 		}
 		#end
 		return unlink(type, false);
-		#else
-		return false;
 		#end
 	}
-
-	#if (cpp || js)
-	/** Takes the chained `type` out: found by which string it is, or by its text. **/
-	private function unlink(type:String, byPointer:Bool):Bool {
-		if (matches(this.type, type, byPointer)) {
-			var second:Null<Slot> = next;
-			if (second == null) {
-				this.type = null;
-				this.list = null;
-			} else {
-				this.type = second.type;
-				this.list = second.list;
-				this.next = second.next;
-			}
-			return true;
-		}
-		var previous:Null<Slot> = null;
-		var slot:Null<Slot> = next;
-		while (slot != null) {
-			if (matches(slot.type, type, byPointer)) {
-				if (previous == null) {
-					next = slot.next;
-				} else {
-					previous.next = slot.next;
-				}
-				return true;
-			}
-			previous = slot;
-			slot = slot.next;
-		}
-		return false;
-	}
-
-	private static inline function matches(a:Null<String>, b:String, byPointer:Bool):Bool {
-		return byPointer ? sameString(a, b) : a == b;
-	}
-	#end
 
 	/**
 		Forgets every type; the ones it had, in no particular order, or null
 		when it had none. Dispatches walking a list go on over it.
 	**/
-	public function clear():Null<Array<String>> {
+	public function clearAll():Null<Array<String>> {
 		var types:Null<Array<String>> = null;
-		#if (cpp || js)
-		if (type != null) {
-			types = [type];
-			var slot:Null<Slot> = next;
-			while (slot != null) {
-				types.push(slot.type);
-				slot = slot.next;
+		#if !(cpp || js || jvm)
+		for (type in keys()) {
+			if (types == null) {
+				types = [];
 			}
+			types.push(type);
 		}
-		type = null;
-		list = null;
-		next = null;
-		#end
+		clear();
+		#else
+		var slot:Null<Slot> = head();
+		while (slot != null) {
+			if (types == null) {
+				types = [];
+			}
+			types.push(slot.type);
+			slot = slot.next;
+		}
+		dropChain();
 		var map = this.map;
 		if (map != null) {
 			for (type in map.keys()) {
@@ -310,6 +278,7 @@ final class Lane {
 			}
 		}
 		this.map = null;
+		#end
 		return types;
 	}
 
@@ -343,19 +312,17 @@ final class Lane {
 
 	/** Puts `list` in place of the listeners of `type`, which has some. **/
 	private function replace(type:String, list:Array<Listener>):Void {
+		#if !(cpp || js || jvm)
+		set(type, list);
+		#else
 		var map = this.map;
 		if (map != null) {
 			map.set(type, list);
 			return;
 		}
-		#if (cpp || js)
-		if (sameString(this.type, type) || this.type == type) {
-			this.list = list;
-			return;
-		}
-		var slot:Null<Slot> = next;
+		var slot:Null<Slot> = head();
 		while (slot != null) {
-			if (sameString(slot.type, type) || slot.type == type) {
+			if (sameString(slot.type, type) #if (cpp && !cppia) || slot.type == type #end) {
 				slot.list = list;
 				return;
 			}
@@ -366,24 +333,22 @@ final class Lane {
 
 	/** A type's first listeners: chained, or mapped once there are many. **/
 	private function addType(type:String, list:Array<Listener>):Void {
+		#if !(cpp || js || jvm)
+		set(type, list);
+		#else
 		var map = this.map;
 		if (map != null) {
 			map.set(type, list);
 			return;
 		}
-		#if (cpp || js)
-		if (this.type == null) {
+		var first:Null<Slot> = head();
+		if (first == null) {
 			this.type = type;
 			this.list = list;
 			return;
 		}
 		var count:Int = 1;
-		var last:Null<Slot> = next;
-		if (last == null) {
-			next = new Slot(type, list);
-			return;
-		}
-		count++;
+		var last:Slot = first;
 		while (last.next != null) {
 			last = last.next;
 			count++;
@@ -395,35 +360,83 @@ final class Lane {
 		// One more than the chain keeps: all of them go into a map, and stay
 		// there. A lane that went past the chain once may again.
 		map = new StringMap();
-		map.set(this.type, this.list);
-		var slot:Null<Slot> = next;
+		var slot:Null<Slot> = first;
 		while (slot != null) {
 			map.set(slot.type, slot.list);
 			slot = slot.next;
 		}
-		this.type = null;
-		this.list = null;
-		next = null;
-		#else
-		map = new StringMap();
-		#end
+		dropChain();
 		map.set(type, list);
 		this.map = map;
+		#end
 	}
 
-	#if (cpp || js)
+	#if (cpp || js || jvm)
+	/** The first chained slot, or null: the lane itself, while it holds a type. **/
+	private inline function head():Null<Slot> {
+		return this.type == null ? null : this;
+	}
+
+	/** Forgets the whole chain. **/
+	private inline function dropChain():Void {
+		this.type = null;
+		this.list = null;
+		this.next = null;
+	}
+
+	/** Takes the chained `type` out: found by which string it is, or by its text. **/
+	private function unlink(type:String, byPointer:Bool):Bool {
+		var first:Null<Slot> = head();
+		if (first == null) {
+			return false;
+		}
+		if (matches(first.type, type, byPointer)) {
+			// The lane is the first slot: the second moves into it.
+			var second:Null<Slot> = next;
+			if (second == null) {
+				this.type = null;
+				this.list = null;
+			} else {
+				this.type = second.type;
+				this.list = second.list;
+				this.next = second.next;
+			}
+			return true;
+		}
+		var previous:Slot = first;
+		var slot:Null<Slot> = first.next;
+		while (slot != null) {
+			if (matches(slot.type, type, byPointer)) {
+				previous.next = slot.next;
+				return true;
+			}
+			previous = slot;
+			slot = slot.next;
+		}
+		return false;
+	}
+
+	private static inline function matches(a:Null<String>, b:String, byPointer:Bool):Bool {
+		#if (cpp && !cppia)
+		return byPointer ? sameString(a, b) : a == b;
+		#else
+		return sameString(a, b);
+		#end
+	}
+
 	/**
 		The listeners for `type`, known not to be the first chained one by
 		which string it is, or null; with nothing chained, from the map. An
-		emitter is mostly asked about the
-		very strings it was given, so natively the walk compares which
-		string each is first, which costs nothing, and only then their text;
-		on JavaScript one walk by `===` is as cheap.
+		emitter is mostly asked about the very strings it was given, so
+		natively the walk compares which string each is first, which costs
+		nothing, and only then their text; on JavaScript one walk by `===`
+		is as cheap.
 	**/
 	public function listAfter(type:String):Null<Array<Listener>> {
 		if (this.type == null) {
 			return mapped(type);
 		}
+		var first:Slot = this;
 		var slot:Null<Slot> = next;
 		while (slot != null) {
 			if (sameString(slot.type, type)) {
@@ -436,11 +449,7 @@ final class Lane {
 			return null;
 		}
 		var length:Int = type.length;
-		var first:String = this.type;
-		if (first.length == length && first == type) {
-			return this.list;
-		}
-		slot = next;
+		slot = first;
 		while (slot != null) {
 			var other:String = slot.type;
 			if (other.length == length && other == type) {
@@ -455,11 +464,21 @@ final class Lane {
 	/**
 		Whether two types are the one string: natively by where their text
 		is, which costs nothing where hxcpp's `==` is a call; on JavaScript
-		by `===`, as cheap there.
+		by `==`, as cheap there. On the jvm `==` between two strings is
+		`compareTo`, which reads every character even of the very same
+		string: `equals` looks at identity first, and a string keeps its
+		hash, so two that differ are told apart by it at once.
 	**/
 	public static inline function sameString(a:Null<String>, b:Null<String>):Bool {
 		#if (cpp && !cppia)
 		return untyped __cpp__("({0}.raw_ptr() == {1}.raw_ptr())", a, b);
+		#elseif jvm
+		return if (a == null || b == null) {
+			a == null && b == null;
+		} else {
+			var text:java.NativeString = cast a;
+			text.hashCode() == (cast b : java.NativeString).hashCode() && text.equals(b);
+		}
 		#else
 		return a == b;
 		#end
@@ -467,21 +486,22 @@ final class Lane {
 	#end
 }
 
-#if (cpp || js)
+#if (cpp || js || jvm)
 /**
-	A chained type after the first and its listeners: a lookup finds both
-	in one object, so nothing can pair one type with another's listeners.
+	A chained type and its listeners: a lookup finds both in one object, so
+	nothing can pair one type with another's listeners. The lane is its own
+	first slot, and takes the second's type when the first goes.
 **/
 @:noCompletion
-final class Slot {
-	public final type:String;
+class Slot {
+	public var type:Null<String>;
 
 	/** Its listeners, in the order they run; never empty while chained. **/
-	public var list:Array<Listener>;
+	public var list:Null<Array<Listener>>;
 
 	public var next:Null<Slot>;
 
-	public inline function new(type:String, list:Array<Listener>) {
+	public function new(type:Null<String>, list:Null<Array<Listener>>) {
 		this.type = type;
 		this.list = list;
 		this.next = null;

@@ -45,8 +45,9 @@ import haxe.exceptions.ArgumentException;
 	  next. An emitter a bubbling event has not reached yet is taken as it
 	  is when the event gets there, so a listener added to a parent from a
 	  child's listener runs for that very event.
-	- **Questions are answered as things are**: `hasEventListener` and
-	  `hasSignalListener` say what is there now, also during a dispatch.
+	- **Questions are answered as things are**: `hasEventListener`,
+	  `hasSignalListener` and `has` say what is there now, also during a
+	  dispatch. A `once` listener is gone before it is called.
 	- **Removal finds what was added**, on every target: a bound method
 	  (`removeEventListener(type, this.onClose)`) is found even where each
 	  read of it makes a new closure.
@@ -124,7 +125,7 @@ class Emitter implements IEmitter {
 	**/
 	public function removeEventListener<T:Event>(type:EventType<T>, listener:T->Void):Void {
 		var lane:Null<Lane> = __events;
-		if (lane != null && listener != null && lane.remove(type, listener) == Lane.TRANSITION) {
+		if (lane != null && listener != null && lane.removeListener(type, listener) == Lane.TRANSITION) {
 			listenersChanged(type, false);
 		}
 	}
@@ -136,7 +137,19 @@ class Emitter implements IEmitter {
 	**/
 	public function hasEventListener(type:String):Bool {
 		var lane:Null<Lane> = __events;
-		return lane != null && lane.listOf(type) != null;
+		if (lane == null) {
+			return false;
+		}
+		#if (cpp || js || jvm)
+		// The first chained type always has listeners: its list need not be
+		// read. Both null is no type at all.
+		if (Lane.sameString(lane.type, type)) {
+			return type != null;
+		}
+		return lane.listAfter(type) != null;
+		#else
+		return lane.listOf(type) != null;
+		#end
 	}
 
 	/**
@@ -159,7 +172,7 @@ class Emitter implements IEmitter {
 			// keeps the lane it started with.
 			__events = null;
 		}
-		var types:Null<Array<String>> = lane.clear();
+		var types:Null<Array<String>> = lane.clearAll();
 		if (types != null) {
 			for (gone in types) {
 				listenersChanged(gone, false);
@@ -194,9 +207,32 @@ class Emitter implements IEmitter {
 		if (event.target != null) {
 			return __dispatchOnward(event, false);
 		}
+		if (event.bubbles) {
+			return __dispatchFurther(event, false);
+		}
+		// An event of its own that stays here: the usual case, kept short
+		// so that a compiler inlining it inlines all of it.
 		var lane:Null<Lane> = __events;
-		event.target = (lane != null && lane.target != null) ? lane.target : this;
-		return event.bubbles ? __bubble(event, false) : __local(event);
+		if (lane == null) {
+			event.target = this;
+			return false;
+		}
+		var list:Null<Array<Listener>> = lane.listOf(event.type);
+		if (list == null) {
+			event.target = lane.target == null ? this : lane.target;
+			return false;
+		}
+		var owner:IEmitter = lane.target == null ? this : lane.target;
+		event.target = owner;
+		event.currentTarget = owner;
+		var only:Listener = list[0];
+		if (list.length == 1 && only.state == Listener.KEPT) {
+			var call:Event->Void = cast only.fn;
+			call(event);
+		} else {
+			__walk(lane, list, event);
+		}
+		return true;
 	}
 
 	/**
@@ -228,12 +264,7 @@ class Emitter implements IEmitter {
 		if (event == null) {
 			return false;
 		}
-		if (event.target != null) {
-			return __dispatchOnward(event, true);
-		}
-		var lane:Null<Lane> = __events;
-		event.target = (lane != null && lane.target != null) ? lane.target : this;
-		return event.bubbles ? __bubble(event, true) : __localContained(event);
+		return __dispatchFurther(event, true);
 	}
 
 	/**
@@ -609,7 +640,17 @@ class Emitter implements IEmitter {
 	**/
 	public function hasSignalListener(signal:String):Bool {
 		var lane:Null<Lane> = __signals;
-		return lane != null && lane.listOf(signal) != null;
+		if (lane == null) {
+			return false;
+		}
+		#if (cpp || js || jvm)
+		if (Lane.sameString(lane.type, signal)) {
+			return signal != null;
+		}
+		return lane.listAfter(signal) != null;
+		#else
+		return lane.listOf(signal) != null;
+		#end
 	}
 
 	/** Removes every listener for `signal`, or with no signal, for every signal. **/
@@ -623,7 +664,7 @@ class Emitter implements IEmitter {
 			return;
 		}
 		__signals = null;
-		lane.clear();
+		lane.clearAll();
 	}
 
 	/** Removes every listener: for every event and every signal. **/
@@ -791,6 +832,26 @@ class Emitter implements IEmitter {
 	}
 
 	/**
+		Every dispatch but `dispatchEvent`'s usual one: an event handed on
+		from another emitter (its `target` set), one that bubbles, and every
+		contained dispatch.
+	**/
+	@:noCompletion private function __dispatchFurther(event:Event, contained:Bool):Bool {
+		if (event.target != null) {
+			return __dispatchOnward(event, contained);
+		}
+		var lane:Null<Lane> = __events;
+		event.target = (lane != null && lane.target != null) ? lane.target : this;
+		return if (event.bubbles) {
+			__bubble(event, contained);
+		} else if (contained) {
+			__localContained(event);
+		} else {
+			__local(event);
+		}
+	}
+
+	/**
 		Dispatches an event a listener of another emitter handed on here, and
 		gives it back its `currentTarget` when done, by returning or by
 		throwing: the dispatch it came from goes on to its next listener,
@@ -851,7 +912,7 @@ class Emitter implements IEmitter {
 	@:noCompletion private function __removeSignal(signal:String, listener:Function):Void {
 		var lane:Null<Lane> = __signals;
 		if (lane != null && listener != null) {
-			lane.remove(signal, listener);
+			lane.removeListener(signal, listener);
 		}
 	}
 

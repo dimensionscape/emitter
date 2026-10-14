@@ -41,7 +41,7 @@ class Event {
 	public var cancelable(default, null):Bool;
 
 	/** Whether a listener called `preventDefault()` on a cancelable event. **/
-	public var defaultPrevented(default, null):Bool;
+	public var defaultPrevented(get, never):Bool;
 
 	/**
 		The emitter the event was dispatched on, or the one it stands in for
@@ -60,13 +60,24 @@ class Event {
 		`stopImmediatePropagation()`: no emitter after this one runs its
 		listeners.
 	**/
-	public var propagationStopped(default, null):Bool;
+	public var propagationStopped(get, never):Bool;
 
 	/**
 		Whether a listener called `stopImmediatePropagation()`: no listener
 		after that one runs, on this emitter or any other.
 	**/
-	public var immediatePropagationStopped(default, null):Bool;
+	public var immediatePropagationStopped(get, never):Bool;
+
+	/**
+		What a dispatch has done to the event, one bit each: `STOPPED`,
+		`STOPPED_NOW` and `PREVENTED`. One field, so `reuse()` clears them
+		with one write.
+	**/
+	@:noCompletion private var __state:Int;
+
+	static inline var STOPPED:Int = 1;
+	static inline var STOPPED_NOW:Int = 2;
+	static inline var PREVENTED:Int = 4;
 
 	/**
 		@param type What happened: the name listeners are added for.
@@ -77,11 +88,9 @@ class Event {
 		this.type = type;
 		this.bubbles = bubbles;
 		this.cancelable = cancelable;
-		defaultPrevented = false;
 		target = null;
 		currentTarget = null;
-		propagationStopped = false;
-		immediatePropagationStopped = false;
+		__state = 0;
 	}
 
 	/**
@@ -89,7 +98,7 @@ class Event {
 		stops it: no parent runs its listeners.
 	**/
 	public function stopPropagation():Void {
-		propagationStopped = true;
+		__state |= STOPPED;
 	}
 
 	/**
@@ -97,8 +106,7 @@ class Event {
 		here or on any parent.
 	**/
 	public function stopImmediatePropagation():Void {
-		propagationStopped = true;
-		immediatePropagationStopped = true;
+		__state |= STOPPED | STOPPED_NOW;
 	}
 
 	/**
@@ -107,7 +115,7 @@ class Event {
 	**/
 	public function preventDefault():Void {
 		if (cancelable) {
-			defaultPrevented = true;
+			__state |= PREVENTED;
 		}
 	}
 
@@ -121,9 +129,7 @@ class Event {
 	public function reuse():Void {
 		target = null;
 		currentTarget = null;
-		propagationStopped = false;
-		immediatePropagationStopped = false;
-		defaultPrevented = false;
+		__state = 0;
 	}
 
 	/**
@@ -133,10 +139,22 @@ class Event {
 	**/
 	public function clone():Event {
 		var event = new Event(type, bubbles, cancelable);
-		event.defaultPrevented = defaultPrevented;
+		event.__state = __state & PREVENTED;
 		event.target = target;
 		event.currentTarget = currentTarget;
 		return event;
+	}
+
+	private inline function get_defaultPrevented():Bool {
+		return (__state & PREVENTED) != 0;
+	}
+
+	private inline function get_propagationStopped():Bool {
+		return (__state & STOPPED) != 0;
+	}
+
+	private inline function get_immediatePropagationStopped():Bool {
+		return (__state & STOPPED_NOW) != 0;
 	}
 
 	public function toString():String {

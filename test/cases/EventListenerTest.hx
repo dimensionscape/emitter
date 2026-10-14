@@ -332,6 +332,19 @@ class EventListenerTest extends Test {
 		Assert.equals("b,d,f,g", heard.join(","));
 	}
 
+	function testANullTypeHasNoListenersWhateverTheEmitterHolds() {
+		var emitter = new Emitter();
+		Assert.isFalse(emitter.hasEventListener(null));
+		emitter.allowDuplicates = true;
+		Assert.isFalse(emitter.hasEventListener(null));
+		emitter.addEventListener(PING, function(_) {});
+		Assert.isFalse(emitter.hasEventListener(null));
+		emitter.removeEventListeners(PING);
+		Assert.isFalse(emitter.hasEventListener(null));
+		Assert.isFalse(emitter.dispatchEvent(new Event(null)));
+		Assert.isFalse(emitter.hasSignalListener(null));
+	}
+
 	function testATypeMadeAtRunTimeFindsTheListenersOfTheSameText() {
 		// Natively types are compared by which string they are first: a
 		// string built at run time is another one with the same text.
