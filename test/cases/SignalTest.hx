@@ -191,6 +191,26 @@ class SignalTest extends Test {
 		Assert.equals("a,b,a,late", log.join(","));
 	}
 
+	function testListenersAddedAheadDuringAnEmitWaitForTheNext() {
+		var emitter = new Emitter();
+		var log = [];
+		var once = true;
+		emitter.on(S1, function(_) {
+			log.push("a");
+			if (once) {
+				once = false;
+				emitter.on(S1, function(_) log.push("high"), 10);
+				emitter.prepend(S1, function(_) log.push("first"));
+			}
+		});
+		emitter.on(S1, function(_) log.push("b"));
+		emitter.emit(S1, 0);
+		Assert.equals("a,b", log.join(","));
+		log = [];
+		emitter.emit(S1, 0);
+		Assert.equals("high,first,a,b", log.join(","));
+	}
+
 	function testASignalListenerMayRemoveItself() {
 		var emitter = new Emitter();
 		var calls = 0;

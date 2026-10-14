@@ -192,6 +192,7 @@ class MidDispatchTest extends Test {
 		});
 		emitter.on(PING, function(_) log.push("b"));
 		emitter.dispatchEvent(new Event(PING));
+		Assert.equals("a,b", log.join(","));
 		log = [];
 		emitter.dispatchEvent(new Event(PING));
 		Assert.equals("high,a,b,low", log.join(","));
