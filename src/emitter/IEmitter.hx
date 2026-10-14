@@ -1,21 +1,33 @@
 package emitter;
 
-import emitter.signals.SignalType;
-import emitter.signals.SignalHandler;
-import emitter.signals.Arity;
-import haxe.Rest;
-
 /**
- * Describes the public API contract for a full-featured signal emitter.
- *
- * This interface extends IBaseEmitter and includes additional functionality
- * such as one-time listeners, untyped emissions, and internal cleanup.
- *
- * @see IBaseEmitter
- */
-interface IEmitter extends IBaseEmitter {
-	public function once<T>(signal:SignalType<T>, callback:SignalHandler<T>, arity:Arity):Emitter;
-	public function emitUntyped<T>(type:SignalType<T>, ...args:Dynamic):Void;
-	public function dispose():Void;
-	public var isReady(get, never):Bool;
+	What can be listened to for events: an `Emitter`, or a class that keeps
+	one inside and hands its calls on.
+
+	An event's `target` and `currentTarget` are typed by it, so a listener
+	written against `IEmitter` takes events from any emitter, whichever
+	framework made it.
+**/
+interface IEmitter {
+	/**
+		Adds `listener` for events of `type`. See `Emitter.addEventListener`.
+	**/
+	function addEventListener<T:Event>(type:EventType<T>, listener:T->Void, priority:Int = 0):Void;
+
+	/**
+		Removes `listener` for events of `type`. See `Emitter.removeEventListener`.
+	**/
+	function removeEventListener<T:Event>(type:EventType<T>, listener:T->Void):Void;
+
+	/**
+		Whether anything listens for events of `type`, or with `listener`
+		given, whether that does. See `Emitter.hasEventListener`.
+	**/
+	function hasEventListener<T:Event>(type:EventType<T>, ?listener:T->Void):Bool;
+
+	/**
+		Dispatches `event` to the listeners for its type. See
+		`Emitter.dispatchEvent`.
+	**/
+	function dispatchEvent(event:Event):Bool;
 }
