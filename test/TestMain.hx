@@ -21,6 +21,7 @@ class TestMain {
 			new LazyStorageTest(),
 			new SubscriptionTest(),
 			new ListenerHooksTest(),
+			new ConstructionTest(),
 			new GraphaxeReliesOnTest()
 		]);
 	}

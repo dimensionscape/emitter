@@ -105,6 +105,13 @@ class Emitter implements IEmitter {
 		on, as `target` and `currentTarget`: the object that holds this
 		emitter and hands its calls on. This emitter itself when null.
 	**/
+	// On the jvm, a constructor that some subclass must run in two steps (one
+	// with a dynamic method, say) needs every constructor above it to run so
+	// too, and Haxe 4.3 marks an ancestor only if it happens to process it
+	// after that subclass; otherwise the subclass's super() fails the jvm's
+	// verifier. Marked here, every subclass finds a marked ancestor whatever
+	// the order. Elsewhere the mark means nothing.
+	@:hxGen
 	public function new(?target:IEmitter) {
 		__events = target == null ? null : new Lane(target);
 		__signals = null;
