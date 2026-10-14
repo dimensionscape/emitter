@@ -2,10 +2,10 @@
 	"name": "emitter",
 	"url" : "https://github.com/Dimensionscape/Emitter",
 	"license": "MIT",
-	"tags": ["eventdispatcher", "eventemitter", "signal", "signals", "event", "emitter", "dispatcher","events", "observer"],
-    "description": "Emitter is a tiny, ultra lightweight and super performant signal-like event handling library with type safety.",
-	"version": "1.0.0",
+	"tags": ["eventdispatcher", "eventemitter", "signal", "signals", "event", "events", "emitter", "dispatcher", "observer", "cross"],
+	"description": "Typed events and signals for Haxe: ActionScript-style events with priorities and bubbling, and typed signals of up to five arguments, with nothing allocated to dispatch them.",
+	"version": "2.0.0",
 	"classPath": "src/",
-	"releasenote": "Stable Release",
+	"releasenote": "2.0.0: events and typed signals on one emitter, built for frameworks to extend.",
 	"contributors": [ "Dimensionscape" ]
 }

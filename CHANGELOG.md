@@ -1,3 +1,39 @@
+## [2.0.0] - Unreleased
+
+A redesign: one `Emitter` carries ActionScript-style events and typed signals on one dispatch core, made to be
+extended by frameworks. The 1.x API is replaced, not kept alongside.
+
+### Added
+- **Events:** `Event` (type, target, current target, bubbling, stop and cancel, `reuse`, `clone`), `EventType<T>`
+  typing a listener by its event, `IEmitter`, and `addEventListener`, `removeEventListener`, `hasEventListener`,
+  `removeEventListeners` and `dispatchEvent` on `Emitter`.
+- **Bubbling** through `getEventParent()`, asked only for an event that bubbles; `stopPropagation` and
+  `stopImmediatePropagation`.
+- **Priorities** on both lanes, highest first; `prepend` puts a listener first among its priority.
+- **Duplicate policy:** an event listener added again is ignored, as in ActionScript; `allowDuplicates` keeps it
+  instead. Signals keep duplicates.
+- **`has(token, listener)`** asks whether one listener is there, for events and signals alike.
+- **Hooks for frameworks:** `listenersChanged(type, present)` from every path that adds or removes,
+  `dispatchContained` with `listenerThrew`, `dispatchLocal`, and a delegate target (`new Emitter(owner)`).
+- **Tests** on hxcpp, the jvm, Node, eval, HashLink and Neko (`haxe test/all.hxml`), and a benchmark
+  (`haxe bench/all.hxml`).
+
+### Changed
+- **Signals** are `Signal0` to `Signal5`, typed by their arguments only (`Signal1<Int>` for
+  `SignalType1<Int->Void, Int>`). `emit` is inlined, allocates nothing, and returns whether anything listened.
+- **`once`** takes no arity, and `off` cancels it before it runs.
+- **Changes during a dispatch** follow one rule on every target: each emitter's listeners are taken as they are
+  when the dispatch reaches it. A listener may remove itself or add itself again.
+- **Removal** finds a bound method on every target, eval, Neko and the jvm included.
+- **A listener that throws** reaches the caller with its own value and stack, and leaves the emitter as it was.
+- **Storage:** an emitter with no listeners holds two null fields, and works when made by
+  `Type.createEmptyInstance`.
+
+### Removed
+- `BaseEmitter`, `IBaseEmitter`, `SignalType` to `SignalType5`, `SignalHandler`, `Arity`, `emitUntyped`,
+  `dispose`, `callbackCount`, `signalCount`, `totalCallbacks`, `hasSignal`, `removeCallbacks` and `isReady`.
+  `removeAllListeners`, `hasSignalListener` and `removeSignalListeners` cover what they did.
+
 ## [1.0.0] - 2025-08-04
 
 ### Added
@@ -11,7 +47,7 @@
 
 ### Changed
 - **Memory Management:** Signals map is now lazily instantiated, reducing GC pressure and improving memory usage for lightweight objects.
-- **Improved `once` Handler:** Major enhancements to `once()` usage—now requires explicit arity to ensure correct parameter passing and cross-target compatibility.
+- **Improved `once` Handler:** Major enhancements to `once()` usage: now requires explicit arity to ensure correct parameter passing and cross-target compatibility.
 - **Untyped Once Handling:** `once` now properly supports untyped emits, allowing one-time handlers for variadic argument signals.
 - **Project Structure:** Refactored emitter codebase, moving `Emitter` to extend `BaseEmitter` for clearer separation of responsibilities.
 - **Renamed `TypedFunction` to `SignalHandler`**

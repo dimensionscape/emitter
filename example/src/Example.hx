@@ -1,170 +1,130 @@
-package src;
-
 import emitter.Emitter;
-import emitter.signals.SignalType;
-import haxe.Constraints.Function;
+import emitter.Event;
+import emitter.EventType;
+import emitter.Signal0;
+import emitter.Signal2;
 
 /**
- * ...
- * @author Christopher Speciale
- */
+	A tour of Emitter: events, bubbling, signals, and the hooks a
+	framework builds on. Run it with `haxe build.hxml` in this folder.
+**/
 class Example {
-	public static inline function main():Void {
-		new Example();
+	static function main() {
+		events();
+		bubbling();
+		signals();
+		frameworkHooks();
 	}
 
-	private function new() {
-		runExamples();
+	static function events() {
+		trace("Events");
+		var game = new Emitter();
+		game.addEventListener(ScoreEvent.SCORED, function(event:ScoreEvent) trace("scored " + event.points));
+
+		// Higher priorities run first; once listens for the next event only.
+		game.on(ScoreEvent.SCORED, function(event:ScoreEvent) trace("first, priority 10"), 10)
+			.once(ScoreEvent.SCORED, function(event:ScoreEvent) trace("only the first time"));
+		game.dispatchEvent(new ScoreEvent(10));
+		game.dispatchEvent(new ScoreEvent(20));
+
+		// Adding a listener that is already there does nothing.
+		game.removeAllListeners();
+		var onScored = function(event:ScoreEvent) trace("added twice, heard once");
+		game.addEventListener(ScoreEvent.SCORED, onScored);
+		game.addEventListener(ScoreEvent.SCORED, onScored);
+		game.dispatchEvent(new ScoreEvent(30));
+		trace("listening: " + game.has(ScoreEvent.SCORED, onScored));
+		game.removeEventListener(ScoreEvent.SCORED, onScored);
+		trace("anything listening: " + game.hasEventListener(ScoreEvent.SCORED));
 	}
 
-	function runExamples():Void {
-		trace("Execute simple example");
-		// Basic example covering a simple untyped use case
-		simpleExample();
+	static function bubbling() {
+		trace("Bubbling");
+		var root = new Node();
+		var leaf = new Node(root);
+		var rootHeard = false;
+		root.addEventListener(Event.CHANGE, function(event:Event) {
+			rootHeard = true;
+			trace("root heard it, dispatched on the leaf: " + (event.target == leaf));
+		});
+		leaf.dispatchEvent(new Event(Event.CHANGE, true));
 
-		trace("Execute tpical example");
-		// Typical example covering typed use cases
-		typedExample();
-
-		trace("Execute untyped example");
-		// Typical example covering untyped use case
-		untypedExample();
+		// A listener on the way can stop it.
+		rootHeard = false;
+		leaf.addEventListener(Event.CHANGE, function(event:Event) event.stopPropagation());
+		leaf.dispatchEvent(new Event(Event.CHANGE, true));
+		trace("root heard it after the leaf stopped it: " + rootHeard);
 	}
 
-	function simpleExample():Void {
-		// Create an instance of Emitter
-		var emitter:Emitter = new Emitter();
+	static function signals() {
+		trace("Signals");
+		var player = new Player();
+		player.on(Player.MOVED, function(x:Float, y:Float) trace("moved by " + (x + y)));
+		player.emit(Player.MOVED, 1.5, 2.5);
 
-		// Define a callback function for the "test" signal
-		var callback:Function = function(data:Dynamic) {
-			trace("Received number: " + data);
-		};
-
-		// Subscribe to the "test" signal
-		emitter.on("test", callback);
-
-		// Emit the "test" signal with an argument
-		emitter.emit("test", 42);
-
-		// Unsubscribe the callback from the "test" signal
-		emitter.off("test", callback);
-
-		trace("");
+		// A signal listener added twice is called twice; each off removes one.
+		var count = 0;
+		var tick = function() count++;
+		player.on(Player.TICK, tick).on(Player.TICK, tick);
+		player.emit(Player.TICK);
+		trace("ticks heard: " + count);
+		player.off(Player.TICK, tick).off(Player.TICK, tick);
+		trace("anything listening: " + player.emit(Player.TICK));
 	}
 
-	function typedExample():Void {
-		/*
-			We define our Signal in the example.Signal class as follows:
-			public static var TEST0:SignalType<Void->Void> = "test0";
+	static function frameworkHooks() {
+		trace("Hooks");
+		var sprite = new Sprite();
+		var onFrame = function(event:Event) {};
+		sprite.addEventListener(Sprite.ENTER_FRAME, onFrame);
+		sprite.removeEventListener(Sprite.ENTER_FRAME, onFrame);
+	}
+}
 
-			The first type parameter in every SignalType is the function signature. The
-			base SignalType expects no arguments to be passed and only has one type parameter.
-		 */
+class ScoreEvent extends Event {
+	public static inline var SCORED:EventType<ScoreEvent> = "scored";
 
-		// Create an instance of Emitter
-		var emitter:Emitter = new Emitter();
+	public var points:Int;
 
-		// Define a callback function the TEST0 signal, with no arguments `Void->Void`
-		var callback_TEST0:Void->Void = function() {
-			trace("TEST0 Signal received");
-		};
+	public function new(points:Int) {
+		super(SCORED);
+		this.points = points;
+	}
+}
 
-		// Subscribe to the "TEST0" signal
-		emitter.on(Signal.TEST0, callback_TEST0);
+class Node extends Emitter {
+	public var parent:Null<Node>;
 
-		// Emit the "TEST0" signal with an argument
-		emitter.emit(Signal.TEST0);
-
-		// Unsubscribe the callback from the "TEST0" signal
-		emitter.off(Signal.TEST0, callback_TEST0);
-
-		/*
-			We define our next Signal in the example.Signal class as follows:
-			public static var TEST1:SignalType1<String->Void> = "test1";
-
-			The first type parameter in every SignalType1 is the function signature. SignalType1
-			expects a single parameter type that defines the type of the argument passed in the signal,
-			following the function signature parameter type. In this particular example, the callback
-			function expects a String.
-		 */
-
-		// Define a callback function the TEST1 signal, with a single string parameter `String->Void`
-		var callback_TEST1:String->Void = function(s:String) {
-			trace("Received string: " + s);
-		};
-
-		// Subscribe to the "TEST1" signal
-		emitter.on(Signal.TEST1, callback_TEST1);
-
-		// Emit the "TEST1" signal with an argument
-		emitter.emit(Signal.TEST1, "hello world");
-
-		// Unsubscribe the callback from the "TEST1" signal
-		emitter.off(Signal.TEST1, callback_TEST1);
-
-		/*
-			We define our next Signal in the example.Signal class as follows:
-			public static var TEST2:SignalType2<(Int, Float)->Void> = "test2";
-
-			The first type parameter in every SignalType2 is the function signature. SignalType2
-			expects a two parameter types that define the type of the arguments passed in the signal,
-			following the function signature parameter type. In this particular example, the callback
-			function expects an Int followed by a Float.
-		 */
-
-		// Define a callback function the TEST2 signal, with a single string parameter `(Int, Float)->Void`
-		var callback_TEST2:(Int, Float) -> Void = function(n:Int, x:Float) {
-			trace("Received number: " + n + " and floating-point number: " + x);
-		};
-
-		// Subscribe to the "TEST2" signal
-		emitter.on(Signal.TEST2, callback_TEST2);
-
-		// Emit the "TEST2" signal with an argument
-		emitter.emit(Signal.TEST2, 42, 3.14);
-
-		// Unsubscribe the callback from the "TEST2" signal
-		emitter.off(Signal.TEST2, callback_TEST2);
-
-		/*
-		 * SignalType3
-		 * ..
-		 */
-
-		trace("Take a look at SignalType3 for similar specs");
-
-		/*
-		 * SignalType4
-		 * ..
-		 */
-
-		trace("Take a look at SignalType4 for similar specs");
-
-		/*
-		 * SignalType4
-		 * ..
-		 */
-
-		trace("Take a look at SignalType5 for similar specs");
-		trace("");
+	public function new(?parent:Node) {
+		super();
+		this.parent = parent;
 	}
 
-	function untypedExample():Void {
-		// Create an instance of Emitter
-		var emitter:Emitter = new Emitter();
+	override public function getEventParent():Null<Emitter> {
+		return parent;
+	}
+}
 
-		// Define a callback function for the "test" signal
-		var callback:Function = function(s:String, n:Int, x:Float) {
-			trace("Received string: " + s + " and number: " + n + " and floating-point number: " + x);
-		};
+class Player extends Emitter {
+	public static inline var MOVED:Signal2<Float, Float> = "moved";
+	public static inline var TICK:Signal0 = "tick";
 
-		// Subscribe to the "test" signal
-		emitter.on("test", callback);
+	public function new() {
+		super();
+	}
+}
 
-		// Emit the "test" signal with an arbitrary number or types of arguments using haxe.Rest<Dynamic>
-		emitter.emitUntyped("test", "hello word", 42, 3.14);
+/** A display object that registers for frames when something listens for them. **/
+class Sprite extends Emitter {
+	public static inline var ENTER_FRAME:EventType<Event> = "enterFrame";
 
-		// Unsubscribe the callback from the "test" signal
-		emitter.off("test", callback);
+	public function new() {
+		super();
+	}
+
+	override private function listenersChanged(type:String, present:Bool):Void {
+		if (type == ENTER_FRAME) {
+			trace(present ? "registered for frames" : "dropped from frames");
+		}
 	}
 }

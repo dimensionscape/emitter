@@ -1,3 +1,4 @@
+# Runs the example on Haxe's interpreter: cd example, then haxe build.hxml
 -cp src
 -cp ../src
---run src/Example.hx
+--run Example
