@@ -3,7 +3,7 @@ package emitter;
 /**
 	What an event can be dispatched on: an `Emitter`, or a class that keeps
 	one inside and hands its calls on. An event's `target` and
-	`currentTarget` are typed by it, so a listener written against
+	`currentTarget` are one (an `EventTarget`), so a listener written against
 	`IEmitter` takes events from any emitter, whichever framework made it,
 	and reaches its verbs: `event.target.events.dispatch(other)`.
 

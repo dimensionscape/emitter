@@ -45,15 +45,18 @@ class Event {
 
 	/**
 		The emitter the event was dispatched on, or the one it stands in for
-		(see `Emitter`'s delegate target). Null until it is dispatched.
+		(see `Emitter`'s delegate target). Null until it is dispatched. A
+		listener takes it as the class it is: `var player:Player =
+		event.target` (see `EventTarget`).
 	**/
-	public var target(default, null):Null<IEmitter>;
+	public var target(default, null):Null<EventTarget>;
 
 	/**
 		The emitter whose listeners are running now: `target`, or while the
-		event bubbles, the parent it has reached.
+		event bubbles, the parent it has reached. Taken as the class it is as
+		`target` is.
 	**/
-	public var currentTarget(default, null):Null<IEmitter>;
+	public var currentTarget(default, null):Null<EventTarget>;
 
 	/**
 		Whether a listener called `stopPropagation()` or

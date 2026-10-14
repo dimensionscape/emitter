@@ -11,6 +11,7 @@ class TestMain {
 	static function main() {
 		utest.UTest.run([
 			new EventObjectTest(),
+			new EventTargetTest(),
 			new EventListenerTest(),
 			new DispatchTest(),
 			new BubblingTest(),

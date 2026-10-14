@@ -84,6 +84,20 @@ A listener can call `event.stopPropagation()`, `event.stopImmediatePropagation()
 `event.preventDefault()`, which the dispatcher reads back as `event.defaultPrevented`. A plain string names an
 event type too: `game.events.on("ready", (event:Event) -> ...)`.
 
+`event.target` is the emitter the event was dispatched on, and a listener takes it as the class it is, without a
+cast:
+
+```haxe
+player.events.on(Event.CHANGE, function(event:Event):Void {
+	var changed:Player = event.target;
+});
+```
+
+It converts as `cast` does: taken as a class it is not, it goes wrong as a wrong cast does, and
+`Std.downcast(event.target, Player)` answers null instead. A class that is no emitter at all does not compile.
+`currentTarget` is taken the same way. At run time both are the emitter itself (an `EventTarget` is nothing more),
+so taking one as its class costs what the cast would.
+
 ## Removing a listener
 
 `on` and `once` answer with a `Subscription`. Keep it to remove that listener, a lambda included:
@@ -183,7 +197,8 @@ A framework extends `Emitter` and overrides the hooks it needs:
   others: what it threw goes to `listenerThrew(error, event)`, which a framework overrides to report it.
 - `dispatchLocal(event)` runs one emitter's listeners and nothing else, for a propagation the framework builds itself.
 - `new Emitter(owner)` makes events dispatched through it say `owner` is their target, for a class that keeps an
-  emitter inside rather than extending one. `IEmitter` (`events`) is what both have in common.
+  emitter inside rather than extending one. `IEmitter` (`events`) is what both have in common, and an event's
+  `target` is taken as either.
 - `allowDuplicates` keeps an event listener added twice, for an emitter that holds one per connection.
 
 Names a framework's users already know stay its own, each a one-line inline method on its dispatcher, so its call

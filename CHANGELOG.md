@@ -10,6 +10,9 @@ alongside.
 - **`events`:** the verbs live on `emitter.events`, a view of the emitter itself (nothing is made for it, and each
   verb is inlined where it is called), so a class built on `Emitter` inherits one name and keeps `clear`, `has`,
   `dispatch` and the rest for members of its own. `IEmitter` is `events`.
+- **`EventTarget`:** an event's `target` and `currentTarget` are taken as the class they are, without a cast
+  (`var player:Player = event.target`), and a class that is no emitter does not compile. At run time it is the
+  `IEmitter` itself, and taking it as a class is the cast, inlined.
 - **Subscriptions:** `on` and `once` answer with a `Subscription`; `cancel()` removes that listener, a lambda
   included, with no function equality needed, and `active` says whether it still listens.
 - **`has(token, ?listener)`** and **`clear(?token)`** for both signals and events.
