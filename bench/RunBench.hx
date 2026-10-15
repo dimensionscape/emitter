@@ -27,7 +27,11 @@ using StringTools;
 	- Emitter 2.0, this repository's `src`;
 	- CrossByte's `EventDispatcher`, from `CROSSBYTE_SRC` (CrossByte's `src`);
 	- Graphaxe's `EventEmitter`, from `GRAPHAXE_SRC` (Graphaxe's `src`);
-	- Emitter 1.0.0, from the `v1.0.0` tag of this repository.
+	- Emitter 1.0.0, from the `v1.0.0` tag of this repository;
+	- the signal libraries of lib.haxe.org: msignal, tink_core, hxsignal and
+	  signals, each where haxelib finds it installed (`HAXELIB_PATH` may name
+	  a repository kept for them). They hold one object per signal, which
+	  their cases make for a class with four signals.
 	One whose source is not given is left out. `BENCH_ONLY` names the ones
 	to run, comma separated, to compare fewer while working on one.
 **/
@@ -174,7 +178,28 @@ class RunBench {
 		} else {
 			Sys.println("The v1.0.0 sources could not be read: Emitter 1 is left out.");
 		}
+		for (library in [
+			{name: "msignal", main: "MSignalCases"},
+			{name: "tink_core", main: "TinkCases"},
+			{name: "hxsignal", main: "HxSignalCases"},
+			{name: "signals", main: "SignalsCases"}
+		]) {
+			if (installed(library.name)) {
+				subjects.push({name: library.name, main: library.main, lib: library.name});
+			} else {
+				Sys.println('${library.name} is not installed: it is left out.');
+			}
+		}
 		return subjects;
+	}
+
+	static function installed(library:String):Bool {
+		var process = new Process("haxelib", ["path", library]);
+		process.stdout.readAll();
+		process.stderr.readAll();
+		var code = process.exitCode();
+		process.close();
+		return code == 0;
 	}
 
 	static function outputOf(subject:Subject, target:String):String {
@@ -198,7 +223,7 @@ class RunBench {
 		if (FileSystem.exists(binary)) {
 			FileSystem.deleteFile(binary);
 		}
-		var args = ["-cp", "bench", "-cp", subject.classPath, "-main", subject.main];
+		var args = ["-cp", "bench"].concat(subject.lib != null ? ["-lib", subject.lib] : ["-cp", subject.classPath]).concat(["-main", subject.main]);
 		switch (target) {
 			case "cpp":
 				args = args.concat(["-D", "HXCPP_M64", "--cpp", outputOf(subject, target)]);
@@ -250,5 +275,8 @@ class RunBench {
 typedef Subject = {
 	var name:String;
 	var main:String;
-	var classPath:String;
+	/** The source folder it is built from, unless it is a haxelib. **/
+	var ?classPath:String;
+	/** The haxelib it is built with. **/
+	var ?lib:String;
 }

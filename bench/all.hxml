@@ -1,6 +1,7 @@
 # Builds the benchmark for each dispatcher and runs them interleaved, three
 # reps: haxe bench/all.hxml [cpp] [jvm] [node]
 # Run from the repository's root. CROSSBYTE_SRC and GRAPHAXE_SRC name the
-# src folders of CrossByte and Graphaxe to compare with.
+# src folders of CrossByte and Graphaxe to compare with; msignal, tink_core,
+# hxsignal and signals join where haxelib finds them (HAXELIB_PATH).
 -cp bench
 --run RunBench
