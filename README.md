@@ -81,8 +81,28 @@ game.events.dispatch(new ScoreEvent(10)); // traces 10
 ```
 
 A listener can call `event.stopPropagation()`, `event.stopImmediatePropagation()` and, on a cancelable event,
-`event.preventDefault()`, which the dispatcher reads back as `event.defaultPrevented`. A plain string names an
-event type too: `game.events.on("ready", (event:Event) -> ...)`.
+`event.preventDefault()`, which the dispatcher reads back as `event.defaultPrevented`.
+
+## Plain strings
+
+A name need not be declared. A plain string is a signal when its listener is anything but an `Event` listener,
+an untyped `Function` included, and an event type when its listener takes an `Event`:
+
+```haxe
+emitter.events.on("scored", (points:Int) -> trace(points));   // a signal
+emitter.events.emit("scored", 10);
+
+var callback:haxe.Constraints.Function = (data:Dynamic) -> trace(data);
+emitter.events.on("anything", callback);                       // a signal, untyped
+emitter.events.emit("anything", 42);
+
+game.events.on("ready", (event:Event) -> trace(event.type));    // an event type
+game.events.dispatch(new Event("ready"));
+```
+
+A plain string with no listener (`has("ready")`, `clear("ready")`) names an event type; ask about or clear a
+signal by its `Signal0` to `Signal5` constant. A declared constant is still the better name for a signal used in
+more than one place: its arguments are checked wherever it is emitted.
 
 `event.target` is the emitter the event was dispatched on, and a listener takes it as the class it is, without a
 cast:
@@ -265,6 +285,7 @@ hxml per target. `HL` and `NEKO` name the HashLink and Neko runtimes when they a
 - `on` and `once` answer with a `Subscription` rather than the emitter, so calls no longer chain; `once` takes no
   arity.
 - `emit` returns whether anything listened.
+- Plain strings still name signals, with typed or untyped listeners, as in 1.x (see Plain strings).
 - `removeCallbacks(signal)` and `dispose()` are `clear(signal)` and `clear()`; `hasSignal` is `has`.
 - `prepend`, `emitUntyped`, `callbackCount`, `signalCount`, `totalCallbacks`, `isReady`, `Arity`,
   `SignalHandler`, `BaseEmitter` and `IBaseEmitter` are gone. A priority puts a listener first.

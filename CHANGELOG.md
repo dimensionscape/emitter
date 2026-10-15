@@ -5,6 +5,8 @@ A redesign: one `Emitter` carries typed signals and events on one dispatch core,
 alongside.
 
 ### Added
+- **Plain strings** name signals as in 1.x, with a listener of any type or an untyped `Function`, and name an
+  event type when the listener takes an `Event`.
 - **Events:** `Event` (type, target, current target, bubbling, stop and cancel, `reuse`, `clone`), `EventType<T>`
   typing a listener by its event, and `dispatch(event)`.
 - **`events`:** the verbs live on `emitter.events`, a view of the emitter itself (nothing is made for it, and each

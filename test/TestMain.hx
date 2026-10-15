@@ -17,6 +17,7 @@ class TestMain {
 			new BubblingTest(),
 			new MidDispatchTest(),
 			new SignalTest(),
+			new PlainStringTest(),
 			new RemovalTest(),
 			new ListenersChangedTest(),
 			new LazyStorageTest(),
