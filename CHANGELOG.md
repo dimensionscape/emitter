@@ -1,4 +1,4 @@
-## [2.0.0] - Unreleased
+## [2.0.0] - 2026-10-14
 
 A redesign: one `Emitter` carries typed signals and events on one dispatch core, with a small API (`on`, `once`,
 `off`, `emit`, `dispatch`, `has`, `clear`, reached through `emitter.events`) and hooks for frameworks to build on. The 1.x API is replaced, not kept
