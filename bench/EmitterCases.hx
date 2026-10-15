@@ -262,6 +262,20 @@ class EmitterCases {
 				Bench.kept = emitter;
 			}
 		});
+		Bench.bytes("emitter with four signal listeners", function() {
+			var l0 = function() Bench.sink++;
+			var l1 = function(a:Int) Bench.sink += a;
+			var l3 = function(a:Int, b:Event, c:Int) Bench.sink += a + c;
+			var lf = function(a:Float) if (a > 1) Bench.sink++;
+			return function() {
+				var emitter = new Emitter();
+				emitter.events.on(S0, l0);
+				emitter.events.on(S1, l1);
+				emitter.events.on(S3, l3);
+				emitter.events.on(SF, lf);
+				Bench.kept = emitter;
+			}
+		});
 		Bench.bytes("on + off, the signal has one", function() {
 			var emitter = signals();
 			var listener = function(a:Int) Bench.sink += a;

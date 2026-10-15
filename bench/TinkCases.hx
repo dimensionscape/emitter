@@ -105,6 +105,20 @@ class TinkCases {
 				Bench.kept = holder;
 			}
 		});
+		Bench.bytes("emitter with four signal listeners", function() {
+			var l0 = function(_:Noise) Bench.sink++;
+			var l1 = function(a:Int) Bench.sink += a;
+			var l3 = function(a:Three) Bench.sink += a.a + a.c;
+			var lf = function(a:Float) if (a > 1) Bench.sink++;
+			return function() {
+				var holder = new Holder();
+				holder.s0.listen(l0);
+				holder.s1.listen(l1);
+				holder.s3.listen(l3);
+				holder.sf.listen(lf);
+				Bench.kept = holder;
+			}
+		});
 		Bench.bytes("subscribe + cancel, the signal has one", function() {
 			var holder = signals();
 			var listener = function(a:Int) Bench.sink += a;

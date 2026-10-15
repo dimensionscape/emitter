@@ -111,6 +111,20 @@ class MSignalCases {
 				Bench.kept = holder;
 			}
 		});
+		Bench.bytes("emitter with four signal listeners", function() {
+			var l0 = function() Bench.sink++;
+			var l1 = function(a:Int) Bench.sink += a;
+			var l2 = function(a:Int, b:Thing) Bench.sink += a;
+			var lf = function(a:Float) if (a > 1) Bench.sink++;
+			return function() {
+				var holder = new Holder();
+				holder.s0.add(l0);
+				holder.s1.add(l1);
+				holder.s2.add(l2);
+				holder.sf.add(lf);
+				Bench.kept = holder;
+			}
+		});
 		Bench.bytes("on + off, the signal has one", function() {
 			var holder = signals();
 			var listener = function(a:Int) Bench.sink += a;
